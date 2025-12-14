@@ -1,5 +1,19 @@
 [
   {
+    "selector": "PUBFUTURE",
+    "description": "ad class found in manhwaclan",
+    "confidence": "high",
+    "domains": ["*"],
+    "category": "advertising"
+  },
+  {
+    "selector": ".c-ads",
+    "description": "ad class found in kunmanga",
+    "confidence": "high",
+    "domains": ["*"],
+    "category": "advertising"
+  },
+  {
     "id": "ads-iframes",
     "selector": "iframe[src*='ads'], iframe[src*='doubleclick'], iframe[src*='cpc']",
     "description": "CPC/Ad network iframes",
