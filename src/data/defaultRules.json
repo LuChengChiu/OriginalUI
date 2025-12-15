@@ -9,6 +9,15 @@
     "enabled": true
   },
   {
+    "id": "kunmanga-D1BnW",
+    "selector": ".D1BnW",
+    "description": "ad class found in kunmanga",
+    "confidence": "high",
+    "domains": ["*"],
+    "category": "advertising",
+    "enabled": true
+  },
+  {
     "id": "kunmanga-c-ads",
     "selector": ".c-ads",
     "description": "ad class found in kunmanga",
