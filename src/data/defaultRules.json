@@ -79,5 +79,14 @@
     "domains": ["*"],
     "category": "tracking",
     "enabled": true
+  },
+  {
+    "id": "invisible-overlay-hijacker",
+    "selector": "[style*='position: fixed'][style*='width: 100%'][style*='height: 100%'][style*='opacity: 0'][style*='z-index: 2147483647']",
+    "description": "Invisible full-screen overlay used for click hijacking",
+    "confidence": "high",
+    "domains": ["*"],
+    "category": "advertising",
+    "enabled": true
   }
 ]
