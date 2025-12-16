@@ -1,5 +1,23 @@
 [
   {
+    "id": "manhwaclan-pubfuture-config",
+    "selector": ".pf-config",
+    "description": "ad class found in manhwaclan",
+    "confidence": "high",
+    "domains": ["*"],
+    "category": "advertising",
+    "enabled": true
+  },
+  {
+    "id": "manhwaclan-pubfuture-wrapper",
+    "selector": ".pf-wrapper",
+    "description": "ad class found in manhwaclan",
+    "confidence": "high",
+    "domains": ["*"],
+    "category": "advertising",
+    "enabled": true
+  },
+  {
     "id": "manhwaclan-pubfuture",
     "selector": ".PUBFUTURE",
     "description": "ad class found in manhwaclan",
