@@ -3,7 +3,7 @@
  * Prevents malicious overlays from intercepting user clicks
  */
 
-import { MAX_Z_INDEX, HIGH_Z_INDEX_THRESHOLD, VERY_HIGH_Z_INDEX_THRESHOLD } from '../constants.js';
+import { MAX_Z_INDEX, HIGH_Z_INDEX_THRESHOLD } from "../constants.js";
 export class ClickHijackingProtector {
   constructor() {
     this.isActive = false;
