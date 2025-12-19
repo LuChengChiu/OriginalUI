@@ -66,7 +66,6 @@ export default defineConfig({
         // Copy injected-script.js (runs in page world, doesn't need bundling)
         mkdirSync('dist/scripts', { recursive: true })
         copyFileSync('src/scripts/injected-script.js', 'dist/scripts/injected-script.js')
-        copyFileSync('src/scripts/adDetectionEngine.js', 'dist/scripts/adDetectionEngine.js')
       }
     },
     bundleContentScripts()

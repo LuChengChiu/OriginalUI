@@ -2,6 +2,8 @@
  * Click Hijacking Protection Module
  * Prevents malicious overlays from intercepting user clicks
  */
+
+import { MAX_Z_INDEX, HIGH_Z_INDEX_THRESHOLD, VERY_HIGH_Z_INDEX_THRESHOLD } from '../constants.js';
 export class ClickHijackingProtector {
   constructor() {
     this.isActive = false;
@@ -14,7 +16,7 @@ export class ClickHijackingProtector {
    */
   activate() {
     this.isActive = true;
-    console.log('JustUI: Click hijacking protection activated');
+    console.log("JustUI: Click hijacking protection activated");
   }
 
   /**
@@ -22,7 +24,7 @@ export class ClickHijackingProtector {
    */
   deactivate() {
     this.isActive = false;
-    console.log('JustUI: Click hijacking protection deactivated');
+    console.log("JustUI: Click hijacking protection deactivated");
   }
 
   /**
@@ -31,36 +33,40 @@ export class ClickHijackingProtector {
    */
   setupDocumentProtection() {
     // Capture phase - runs before any other click handlers
-    document.addEventListener('click', (event) => {
-      if (!this.isActive) return;
+    document.addEventListener(
+      "click",
+      (event) => {
+        if (!this.isActive) return;
 
-      // Run advanced click analysis first
-      const clickAllowed = this.handleAdvancedClickProtection(event);
-      if (!clickAllowed) {
-        return; // Click was blocked by advanced protection
+        // Run advanced click analysis first
+        const clickAllowed = this.handleAdvancedClickProtection(event);
+        if (!clickAllowed) {
+          return; // Click was blocked by advanced protection
+        }
+
+        const clickedElement = event.target;
+        const suspiciousOverlay = this.findSuspiciousOverlay(clickedElement);
+
+        if (suspiciousOverlay) {
+          console.warn("JustUI: Blocked click on suspicious overlay", {
+            overlay: suspiciousOverlay,
+            clickTarget: clickedElement,
+          });
+
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation();
+
+          // Remove the overlay immediately
+          this.removeSuspiciousOverlay(suspiciousOverlay);
+          return false;
+        }
+      },
+      {
+        capture: true, // Capture phase - highest priority
+        passive: false, // Allow preventDefault
       }
-
-      const clickedElement = event.target;
-      const suspiciousOverlay = this.findSuspiciousOverlay(clickedElement);
-
-      if (suspiciousOverlay) {
-        console.warn('JustUI: Blocked click on suspicious overlay', {
-          overlay: suspiciousOverlay,
-          clickTarget: clickedElement
-        });
-
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
-
-        // Remove the overlay immediately
-        this.removeSuspiciousOverlay(suspiciousOverlay);
-        return false;
-      }
-    }, {
-      capture: true, // Capture phase - highest priority
-      passive: false // Allow preventDefault
-    });
+    );
 
     // Additional protection against pointer events
     this.setupPointerProtection();
@@ -75,100 +81,105 @@ export class ClickHijackingProtector {
     try {
       const clickTime = Date.now();
       const element = event.target;
-      
+
       // Analyze the click context for suspicious patterns
       const suspiciousFactors = [];
-      
+
       // Check if clicking on invisible or suspicious elements
       const computedStyle = window.getComputedStyle(element);
-      const isInvisible = (
-        computedStyle.opacity === '0' ||
-        computedStyle.visibility === 'hidden' ||
-        computedStyle.display === 'none'
-      );
-      
+      const isInvisible =
+        computedStyle.opacity === "0" ||
+        computedStyle.visibility === "hidden" ||
+        computedStyle.display === "none";
+
       if (isInvisible) {
-        suspiciousFactors.push('invisible_element');
+        suspiciousFactors.push("invisible_element");
       }
-      
+
       // Check for suspicious z-index (like the iframe overlays)
       const zIndex = parseInt(computedStyle.zIndex);
-      if (zIndex > 1000000) {
-        suspiciousFactors.push('high_z_index');
+      if (zIndex > HIGH_Z_INDEX_THRESHOLD) {
+        suspiciousFactors.push("high_z_index");
       }
-      
+
       // Check for suspicious positioning
-      const isFixed = computedStyle.position === 'fixed';
-      const coversFullScreen = (
+      const isFixed = computedStyle.position === "fixed";
+      const coversFullScreen =
         element.offsetWidth >= window.innerWidth * 0.8 &&
-        element.offsetHeight >= window.innerHeight * 0.8
-      );
-      
+        element.offsetHeight >= window.innerHeight * 0.8;
+
       if (isFixed && coversFullScreen) {
-        suspiciousFactors.push('fullscreen_overlay');
+        suspiciousFactors.push("fullscreen_overlay");
       }
-      
+
       // Check element attributes for ad-related patterns
       const suspiciousAttributes = [
-        'data-ad',
-        'data-click-url',
-        'data-redirect',
-        'data-popup',
-        'data-popunder'
+        "data-ad",
+        "data-click-url",
+        "data-redirect",
+        "data-popup",
+        "data-popunder",
       ];
-      
-      const hasSuspiciousAttrs = suspiciousAttributes.some(attr => 
-        element.hasAttribute(attr) || element.closest(`[${attr}]`)
+
+      const hasSuspiciousAttrs = suspiciousAttributes.some(
+        (attr) => element.hasAttribute(attr) || element.closest(`[${attr}]`)
       );
-      
+
       if (hasSuspiciousAttrs) {
-        suspiciousFactors.push('suspicious_attributes');
+        suspiciousFactors.push("suspicious_attributes");
       }
-      
+
       // Check if element contains ad-related URLs in href or data attributes
       const elementHTML = element.outerHTML.toLowerCase();
       const adUrlPatterns = [
-        'adexchangeclear.com',
-        'doubleclick.net',
-        'googlesyndication.com',
-        'param_4=',
-        'param_5=',
-        'clicktracking',
-        'redirect.php'
+        "adexchangeclear.com",
+        "doubleclick.net",
+        "googlesyndication.com",
+        "param_4=",
+        "param_5=",
+        "clicktracking",
+        "redirect.php",
       ];
-      
-      const hasAdUrls = adUrlPatterns.some(pattern => elementHTML.includes(pattern));
-      
+
+      const hasAdUrls = adUrlPatterns.some((pattern) =>
+        elementHTML.includes(pattern)
+      );
+
       if (hasAdUrls) {
-        suspiciousFactors.push('ad_urls');
+        suspiciousFactors.push("ad_urls");
       }
-      
+
       // If multiple suspicious factors, likely a malicious click
       const isSuspiciousClick = suspiciousFactors.length >= 2;
-      
+
       if (isSuspiciousClick) {
-        console.log('JustUI: Blocked suspicious click event:', {
-          element: element.tagName + (element.className ? '.' + element.className : ''),
+        console.log("JustUI: Blocked suspicious click event:", {
+          element:
+            element.tagName +
+            (element.className ? "." + element.className : ""),
           factors: suspiciousFactors,
-          coords: { x: event.clientX, y: event.clientY }
+          coords: { x: event.clientX, y: event.clientY },
         });
-        
+
         event.preventDefault();
         event.stopPropagation();
         event.stopImmediatePropagation();
-        
+
         // Show brief notification
         try {
-          console.warn('🛡️ JustUI blocked a suspicious click (likely ad/malware)');
-        } catch (e) { /* ignore */ }
-        
+          console.warn(
+            "🛡️ JustUI blocked a suspicious click (likely ad/malware)"
+          );
+        } catch (e) {
+          /* ignore */
+        }
+
         return false;
       }
-      
     } catch (error) {
-      console.warn('JustUI: Error in advanced click protection:', error);
+      console.warn("JustUI: Error in advanced click protection:", error);
     }
-    
+
     // Allow the click to proceed if not suspicious
     return true;
   }
@@ -177,24 +188,31 @@ export class ClickHijackingProtector {
    * Setup pointer event protection
    */
   setupPointerProtection() {
-    const events = ['pointerdown', 'pointerup', 'mousedown', 'mouseup'];
-    
-    events.forEach(eventType => {
-      document.addEventListener(eventType, (event) => {
-        if (!this.isActive) return;
+    const events = ["pointerdown", "pointerup", "mousedown", "mouseup"];
 
-        const target = event.target;
-        if (this.isSuspiciousInterceptor(target)) {
-          console.warn(`JustUI: Blocked ${eventType} on suspicious element`, target);
-          event.preventDefault();
-          event.stopPropagation();
-          event.stopImmediatePropagation();
-          
-          // Remove the interceptor
-          target.remove();
-          return false;
-        }
-      }, { capture: true, passive: false });
+    events.forEach((eventType) => {
+      document.addEventListener(
+        eventType,
+        (event) => {
+          if (!this.isActive) return;
+
+          const target = event.target;
+          if (this.isSuspiciousInterceptor(target)) {
+            console.warn(
+              `JustUI: Blocked ${eventType} on suspicious element`,
+              target
+            );
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+
+            // Remove the interceptor
+            target.remove();
+            return false;
+          }
+        },
+        { capture: true, passive: false }
+      );
     });
   }
 
@@ -211,7 +229,7 @@ export class ClickHijackingProtector {
 
     // Check for invisible overlays with high z-index covering the click area
     const elementsAtPoint = document.elementsFromPoint(
-      event.clientX || 0, 
+      event.clientX || 0,
       event.clientY || 0
     );
 
@@ -233,33 +251,45 @@ export class ClickHijackingProtector {
     if (!element || !element.style) return false;
 
     const style = window.getComputedStyle(element);
-    const elementStyle = element.getAttribute('style') || '';
+    const elementStyle = element.getAttribute("style") || "";
 
     // Pattern 1: Invisible full-screen overlay
-    const isFixed = style.position === 'fixed';
-    const isFullWidth = style.width === '100%' || elementStyle.includes('width: 100%');
-    const isFullHeight = style.height === '100%' || elementStyle.includes('height: 100%');
-    const isInvisible = style.opacity === '0' || elementStyle.includes('opacity: 0');
-    const hasHighZIndex = parseInt(style.zIndex) > 2000000;
-    const hasInset = elementStyle.includes('inset:') || elementStyle.includes('inset ');
+    const isFixed = style.position === "fixed";
+    const isFullWidth =
+      style.width === "100%" || elementStyle.includes("width: 100%");
+    const isFullHeight =
+      style.height === "100%" || elementStyle.includes("height: 100%");
+    const isInvisible =
+      style.opacity === "0" || elementStyle.includes("opacity: 0");
+    const hasHighZIndex = parseInt(style.zIndex) > MAX_Z_INDEX;
+    const hasInset =
+      elementStyle.includes("inset:") || elementStyle.includes("inset ");
 
-    const isInvisibleOverlay = isFixed && (isFullWidth || hasInset) && (isFullHeight || hasInset) && isInvisible && hasHighZIndex;
+    const isInvisibleOverlay =
+      isFixed &&
+      (isFullWidth || hasInset) &&
+      (isFullHeight || hasInset) &&
+      isInvisible &&
+      hasHighZIndex;
 
     // Pattern 2: Iframe with suspicious characteristics
-    const isIframe = element.tagName === 'IFRAME';
-    const hasAdSrc = element.src && (
-      element.src.includes('ads') || 
-      element.src.includes('doubleclick') || 
-      element.src.includes('googlesyndication')
-    );
+    const isIframe = element.tagName === "IFRAME";
+    const hasAdSrc =
+      element.src &&
+      (element.src.includes("ads") ||
+        element.src.includes("doubleclick") ||
+        element.src.includes("googlesyndication"));
 
     // Pattern 3: Element positioned off-screen but still capturing events
-    const isOffscreen = (
-      parseInt(style.top) < -500 || 
-      parseInt(style.left) < -500
-    ) && style.position === 'absolute';
+    const isOffscreen =
+      (parseInt(style.top) < -500 || parseInt(style.left) < -500) &&
+      style.position === "absolute";
 
-    return isInvisibleOverlay || (isIframe && (hasAdSrc || isInvisibleOverlay)) || isOffscreen;
+    return (
+      isInvisibleOverlay ||
+      (isIframe && (hasAdSrc || isInvisibleOverlay)) ||
+      isOffscreen
+    );
   }
 
   /**
@@ -272,19 +302,24 @@ export class ClickHijackingProtector {
       className: overlay.className,
       id: overlay.id,
       src: overlay.src,
-      style: overlay.getAttribute('style'),
-      zIndex: window.getComputedStyle(overlay).zIndex
+      style: overlay.getAttribute("style"),
+      zIndex: window.getComputedStyle(overlay).zIndex,
     };
 
-    console.log('JustUI: Removing suspicious click hijacking overlay', overlayInfo);
-    
-    overlay.setAttribute('data-justui-removed', 'click-hijacking-protection');
+    console.log(
+      "JustUI: Removing suspicious click hijacking overlay",
+      overlayInfo
+    );
+
+    overlay.setAttribute("data-justui-removed", "click-hijacking-protection");
     overlay.remove();
 
     // Dispatch custom event for tracking
-    document.dispatchEvent(new CustomEvent('justui:click-hijack-blocked', {
-      detail: overlayInfo
-    }));
+    document.dispatchEvent(
+      new CustomEvent("justui:click-hijack-blocked", {
+        detail: overlayInfo,
+      })
+    );
   }
 
   /**
@@ -297,15 +332,18 @@ export class ClickHijackingProtector {
       'iframe[style*="position: fixed"][style*="opacity: 0"][style*="z-index"]',
       'div[style*="position: fixed"][style*="width: 100%"][style*="height: 100%"][style*="opacity: 0"]',
       'iframe[style*="inset:"][style*="opacity: 0"]',
-      'div[style*="inset:"][style*="opacity: 0"][style*="z-index"]'
+      'div[style*="inset:"][style*="opacity: 0"][style*="z-index"]',
     ];
 
     let removedCount = 0;
 
-    suspiciousSelectors.forEach(selector => {
+    suspiciousSelectors.forEach((selector) => {
       const elements = document.querySelectorAll(selector);
-      elements.forEach(element => {
-        if (!element.hasAttribute('data-justui-removed') && this.isSuspiciousInterceptor(element)) {
+      elements.forEach((element) => {
+        if (
+          !element.hasAttribute("data-justui-removed") &&
+          this.isSuspiciousInterceptor(element)
+        ) {
           this.removeSuspiciousOverlay(element);
           removedCount++;
         }
@@ -313,7 +351,9 @@ export class ClickHijackingProtector {
     });
 
     if (removedCount > 0) {
-      console.log(`JustUI: Click protection scan removed ${removedCount} suspicious overlays`);
+      console.log(
+        `JustUI: Click protection scan removed ${removedCount} suspicious overlays`
+      );
     }
 
     return removedCount;

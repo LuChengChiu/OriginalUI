@@ -1,6 +1,8 @@
 // Advanced Ad Detection Engine for JustUI Chrome Extension
 // Implements pattern-based detection rules with weighted scoring
 
+import { MAX_Z_INDEX, HIGH_Z_INDEX_THRESHOLD } from './constants.js';
+
 class AdDetectionEngine {
   constructor() {
     // Detection rule weights and thresholds
@@ -148,7 +150,7 @@ class AdDetectionEngine {
       const position = style.position;
       const rect = element.getBoundingClientRect();
 
-      const isHighZIndex = zIndex > 2147483647;
+      const isHighZIndex = zIndex >= MAX_Z_INDEX;
       const isFixed = position === "fixed";
       const coversScreen =
         rect.width >= window.innerWidth * 0.8 &&
@@ -746,9 +748,5 @@ class AdDetectionEngine {
   }
 }
 
-// Export for use in content script
-if (typeof module !== "undefined" && module.exports) {
-  module.exports = AdDetectionEngine;
-} else if (typeof window !== "undefined") {
-  window.AdDetectionEngine = AdDetectionEngine;
-}
+// Export for bundling
+export default AdDetectionEngine;

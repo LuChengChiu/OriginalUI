@@ -4,6 +4,7 @@
  */
 import { SuspiciousElementDetector } from './SuspiciousElementDetector.js';
 import { ElementRemover } from './ElementRemover.js';
+import { MAX_Z_INDEX } from '../constants.js';
 
 export class MutationProtector {
   constructor(clickProtector = null) {
@@ -234,7 +235,7 @@ export class MutationProtector {
     // Click hijacking iframe
     if (element.tagName === 'IFRAME' && 
         style.includes('opacity: 0') && 
-        style.includes('z-index: 2147483647')) {
+        style.includes(`z-index: ${MAX_Z_INDEX}`)) {
       return {
         threatType: 'click-hijacking',
         confidence: 0.95

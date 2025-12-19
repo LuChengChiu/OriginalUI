@@ -2,6 +2,8 @@
  * Suspicious Element Detection Module
  * Detects elements that match various ad and malicious patterns
  */
+
+import { MAX_Z_INDEX, HIGH_Z_INDEX_THRESHOLD } from '../constants.js';
 export class SuspiciousElementDetector {
   /**
    * Detect suspicious iframes that might be used for click hijacking or ads
@@ -36,7 +38,7 @@ export class SuspiciousElementDetector {
       suspicionScore += 25;
     }
 
-    if (style.includes('z-index: 2147483647') || style.includes('z-index: 21474836')) {
+    if (style.includes(`z-index: ${MAX_Z_INDEX}`) || style.includes('z-index: 21474836')) {
       reasons.push('Maximum z-index');
       suspicionScore += 35;
     }
@@ -72,7 +74,7 @@ export class SuspiciousElementDetector {
 
     // Check computed styles for additional patterns
     const zIndex = parseInt(computedStyle.zIndex);
-    if (zIndex > 1000000) {
+    if (zIndex > HIGH_Z_INDEX_THRESHOLD) {
       reasons.push(`High z-index: ${zIndex}`);
       suspicionScore += 25;
     }

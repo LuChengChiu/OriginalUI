@@ -13,6 +13,7 @@ import { SecurityProtector } from './modules/SecurityProtector.js';
 import { ScriptAnalyzer } from './modules/ScriptAnalyzer.js';
 import { NavigationGuardian } from './modules/NavigationGuardian.js';
 import { safeStorageGet, safeStorageSet, debouncedStorageSet, isExtensionContextValid } from './utils/chromeApiSafe.js';
+import AdDetectionEngine from './adDetectionEngine.js';
 
 /**
  * Main JustUI Controller - Orchestrates all protection modules
@@ -63,11 +64,9 @@ class JustUIController {
     // 2. Setup message listeners ALWAYS (needed for whitelist changes from popup)
     this.setupMessageListeners();
 
-    // 3. Initialize AdDetectionEngine if available
-    if (typeof AdDetectionEngine !== 'undefined') {
-      this.adDetectionEngine = new AdDetectionEngine();
-      console.log('JustUI: AdDetectionEngine initialized');
-    }
+    // 3. Initialize AdDetectionEngine
+    this.adDetectionEngine = new AdDetectionEngine();
+    console.log('JustUI: AdDetectionEngine initialized');
 
     // 4. Check whitelist/active state BEFORE applying security protections
     if (!this.isActive || this.isDomainWhitelisted()) {
