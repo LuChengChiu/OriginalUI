@@ -17,6 +17,7 @@ import { ElementClassifier } from './modules/ElementClassifier.js';
 import { SnapshotManager } from './modules/SnapshotManager.js';
 import { HybridProcessor } from './modules/HybridProcessor.js';
 import { CleanupRegistry } from './modules/ICleanable.js';
+import { MemoryMonitor } from './modules/MemoryMonitor.js';
 import { safeStorageGet, safeStorageSet, debouncedStorageSet, isExtensionContextValid } from './utils/chromeApiSafe.js';
 import AdDetectionEngine from './adDetectionEngine.js';
 import { PATTERN_DETECTION_CONFIG, HYBRID_CONFIG } from './constants.js';
@@ -39,38 +40,50 @@ class JustUIController {
     this.customRulesEnabled = true;
     this.patternRulesEnabled = true;
     
-    // Cleanup registry for memory leak prevention
-    this.cleanupRegistry = new CleanupRegistry();
+    // Cleanup registry for memory leak prevention with compartments
+    this.cleanupRegistry = new CleanupRegistry({
+      maxCompartmentSize: 20,
+      compartmentTTL: 300000, // 5 minutes
+      enablePeriodicCleanup: true
+    });
     
-    // Protection modules
+    // Memory monitoring for leak detection and verification
+    this.memoryMonitor = new MemoryMonitor({
+      monitoringInterval: 30000, // 30 seconds
+      memoryThreshold: 50 * 1024 * 1024, // 50MB
+      enablePerformanceMarking: true
+    });
+    this.cleanupRegistry.register(this.memoryMonitor, 'MemoryMonitor', 'monitoring');
+    
+    // Protection modules with compartmentalization
     this.securityProtector = new SecurityProtector();
-    this.cleanupRegistry.register(this.securityProtector, 'SecurityProtector');
+    this.cleanupRegistry.register(this.securityProtector, 'SecurityProtector', 'protection');
     
     this.scriptAnalyzer = new ScriptAnalyzer();
-    this.cleanupRegistry.register(this.scriptAnalyzer, 'ScriptAnalyzer');
+    this.cleanupRegistry.register(this.scriptAnalyzer, 'ScriptAnalyzer', 'analysis');
     
     this.clickProtector = new ClickHijackingProtector();
-    this.cleanupRegistry.register(this.clickProtector, 'ClickHijackingProtector');
+    this.cleanupRegistry.register(this.clickProtector, 'ClickHijackingProtector', 'protection');
     
     this.navigationGuardian = new NavigationGuardian();
-    this.cleanupRegistry.register(this.navigationGuardian, 'NavigationGuardian');
+    this.cleanupRegistry.register(this.navigationGuardian, 'NavigationGuardian', 'protection');
     
-    this.mutationProtector = new MutationProtector(this.clickProtector);
-    this.cleanupRegistry.register(this.mutationProtector, 'MutationProtector');
+    this.mutationProtector = new MutationProtector();
+    this.cleanupRegistry.register(this.mutationProtector, 'MutationProtector', 'protection');
     
     this.chromeAdDetector = new ChromeAdTagDetector();
-    this.cleanupRegistry.register(this.chromeAdDetector, 'ChromeAdTagDetector');
+    this.cleanupRegistry.register(this.chromeAdDetector, 'ChromeAdTagDetector', 'detection');
     
-    // Hybrid processing modules
+    // Hybrid processing modules with compartmentalization
     this.elementClassifier = new ElementClassifier();
-    this.cleanupRegistry.register(this.elementClassifier, 'ElementClassifier');
+    this.cleanupRegistry.register(this.elementClassifier, 'ElementClassifier', 'analysis');
     
     this.snapshotManager = new SnapshotManager(HYBRID_CONFIG);
-    this.cleanupRegistry.register(this.snapshotManager, 'SnapshotManager');
+    this.cleanupRegistry.register(this.snapshotManager, 'SnapshotManager', 'caching');
     
     // Performance tracking (singleton to avoid repeated allocations)
     this.performanceTracker = new PerformanceTracker();
-    this.cleanupRegistry.register(this.performanceTracker, 'PerformanceTracker');
+    this.cleanupRegistry.register(this.performanceTracker, 'PerformanceTracker', 'monitoring');
     
     // HybridProcessor will be initialized after AdDetectionEngine is available
     this.hybridProcessor = null;
@@ -115,7 +128,7 @@ class JustUIController {
       fallbackToRealTime: this.fallbackToRealTime,
       adaptiveDetectionEnabled: this.hybridProcessingEnabled
     });
-    this.cleanupRegistry.register(this.hybridProcessor, 'HybridProcessor');
+    this.cleanupRegistry.register(this.hybridProcessor, 'HybridProcessor', 'analysis');
     console.log('JustUI: HybridProcessor initialized');
 
     // 5. Check whitelist/active state BEFORE applying security protections
@@ -138,7 +151,10 @@ class JustUIController {
     // 8. Start all other protection systems
     this.startProtection();
 
-    console.log('JustUI: Initialization complete');
+    // 9. Start memory monitoring after all systems are initialized
+    this.memoryMonitor.startMonitoring(this);
+
+    console.log('JustUI: Initialization complete with memory monitoring');
   }
 
   /**
@@ -154,6 +170,13 @@ class JustUIController {
     
     // Start click hijacking protection
     this.clickProtector.activate();
+    
+    // Set up event-driven communication between MutationProtector and ClickHijackingProtector
+    this.mutationProtector.onEvent('onClickHijackingDetected', (data) => {
+      if (data.action === 'scan_overlays') {
+        this.clickProtector.scanAndRemoveExistingOverlays();
+      }
+    });
     
     // Start mutation protection with rule execution callback
     this.mutationProtector.start({
@@ -681,16 +704,26 @@ class JustUIController {
 
   /**
    * Comprehensive cleanup destructor - prevents memory leaks
-   * Uses registry pattern to follow SOLID principles
+   * Uses registry pattern to follow SOLID principles with memory verification
    */
   destructor() {
     console.log('JustUI: Starting controller destructor...');
+    
+    // Take pre-cleanup memory snapshot
+    const beforeSnapshot = this.memoryMonitor.takeMemorySnapshot('cleanup');
     
     // Stop all protection systems first
     this.stopProtection();
     
     // Use cleanup registry to clean up all modules (follows Open/Closed Principle)
     const results = this.cleanupRegistry.cleanupAll();
+    
+    // Take post-cleanup memory snapshot and verify effectiveness
+    const afterSnapshot = this.memoryMonitor.takeMemorySnapshot('cleanup');
+    const verificationResults = this.memoryMonitor.verifyCleanupEffectiveness(beforeSnapshot, afterSnapshot);
+    
+    // Force garbage collection to maximize cleanup effectiveness
+    this.memoryMonitor.forceGarbageCollection();
     
     // Log cleanup results for debugging
     const successful = results.filter(r => r.success).length;
@@ -707,10 +740,23 @@ class JustUIController {
     this.whitelistCache = null;
     this.adDetectionEngine = null;
     
+    // Clean up ElementRemover static state
+    if (typeof this.constructor.ElementRemover?.cleanup === 'function') {
+      this.constructor.ElementRemover.cleanup();
+    }
+    
     // Note: We don't null out module references since they might still be used elsewhere
     // The cleanup registry handles the actual resource cleanup
     
-    console.log('JustUI: Controller destructor completed');
+    // Log final memory report
+    const memoryReport = this.memoryMonitor.getMemoryReport();
+    console.log('JustUI: Final memory report:', {
+      verificationResults,
+      recommendations: memoryReport.recommendations,
+      memoryHistory: memoryReport.history.length
+    });
+    
+    console.log('JustUI: Controller destructor completed with verification');
   }
 }
 

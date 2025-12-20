@@ -292,4 +292,30 @@ export class PerformanceTracker {
       hybrid: this.getHybridSummary()
     };
   }
+
+  /**
+   * Cleanup method implementation for ICleanable interface
+   * Clears all performance tracking data and metrics
+   */
+  cleanup() {
+    // Reset all measurements and averages
+    this.measurements = [];
+    this.avgTimePerElement = null;
+    
+    // Clear optimization metrics
+    this.optimizationMetrics = {
+      totalElementsQueried: 0,
+      totalElementsFiltered: 0,
+      totalElementsAnalyzed: 0,
+      totalElementsRemoved: 0,
+      filteringSavedTime: 0,
+      concurrencyTime: 0,
+      layoutTime: 0
+    };
+    
+    // Clear hybrid metrics
+    this.resetHybridMetrics();
+    
+    console.log('JustUI: PerformanceTracker cleaned up');
+  }
 }
