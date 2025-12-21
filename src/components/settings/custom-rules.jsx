@@ -14,6 +14,8 @@ const emptyRule = (
 );
 
 export default function CustomRulesManager({
+  enabled,
+  onToggleEnable,
   customRules,
   onRemoveCustomRule,
   onAddNewRule,
@@ -95,6 +97,12 @@ export default function CustomRulesManager({
               <TagsInput.Items className="[&>span>span:first-child]:max-w-7.5 [&>span>span:first-child]:truncate" />
             </TagsInput.Control>
           </TagsInput.Root>
+
+          <CheckboxCard
+            checked={enabled}
+            onChange={onToggleEnable}
+            label="Apply Your Selector Rules"
+          />
         </div>
       ) : (
         emptyRule

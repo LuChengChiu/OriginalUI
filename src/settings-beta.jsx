@@ -15,15 +15,11 @@ function SettingsBeta() {
   const [customRulesEnabled, setCustomRulesEnabled] = useState(true);
   const [patternRulesEnabled, setPatternRulesEnabled] = useState(true);
   const [navigationGuardEnabled, setNavigationGuardEnabled] = useState(true);
-  const [popUnderProtectionEnabled, setPopUnderProtectionEnabled] =
-    useState(true);
-  const [scriptAnalysisEnabled, setScriptAnalysisEnabled] = useState(true);
   const [defaultBlockRequestEnabled, setDefaultBlockRequestEnabled] =
     useState(true);
 
   // Data states
   const [whitelist, setWhitelist] = useState([]);
-  const [defaultRules, setDefaultRules] = useState([]);
   const [customRules, setCustomRules] = useState([]);
   const [networkBlockPatterns, setNetworkBlockPatterns] = useState([]);
   const [navigationStats, setNavigationStats] = useState({
@@ -45,7 +41,6 @@ function SettingsBeta() {
         "scriptAnalysisEnabled",
         "defaultBlockRequestEnabled",
         "whitelist",
-        "defaultRules",
         "customRules",
         "networkBlockPatterns",
         "navigationStats",
@@ -55,15 +50,10 @@ function SettingsBeta() {
         setCustomRulesEnabled(result.customRulesEnabled !== false);
         setPatternRulesEnabled(result.patternRulesEnabled !== false);
         setNavigationGuardEnabled(result.navigationGuardEnabled !== false);
-        setPopUnderProtectionEnabled(
-          result.popUnderProtectionEnabled !== false
-        );
-        setScriptAnalysisEnabled(result.scriptAnalysisEnabled !== false);
         setDefaultBlockRequestEnabled(
           result.defaultBlockRequestEnabled !== false
         );
         setWhitelist(result.whitelist || []);
-        setDefaultRules(result.defaultRules || []);
         setCustomRules(result.customRules || []);
         setNetworkBlockPatterns(result.networkBlockPatterns || []);
         setNavigationStats(
@@ -91,13 +81,9 @@ function SettingsBeta() {
     updateSetting("defaultRulesEnabled", enabled);
   };
 
-  const handleDefaultRuleSelectorsChange = (selectors) => {
-    const updatedRules = defaultRules.map((rule) => ({
-      ...rule,
-      enabled: selectors.includes(rule.selector),
-    }));
-    setDefaultRules(updatedRules);
-    updateSetting("defaultRules", updatedRules);
+  const handleCustomRulesToggle = (enabled) => {
+    setCustomRulesEnabled(enabled);
+    updateSetting("customRulesEnabled", enabled);
   };
 
   // Handle removing custom rule
@@ -175,6 +161,8 @@ function SettingsBeta() {
             />
 
             <CustomRulesManager
+              enabled={customRulesEnabled}
+              onToggleEnable={handleCustomRulesToggle}
               customRules={customRules}
               onRemoveCustomRule={handleRemoveCustomRule}
               onAddNewRule={handleAddNewRule}
