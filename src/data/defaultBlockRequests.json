@@ -98,5 +98,24 @@
     "reason": "Malicious ads from kunmanga.com",
     "severity": "high",
     "resourceTypes": ["xmlhttprequest", "script", "sub_frame", "other"]
+  },
+  {
+    "id": "uBO_014",
+    "trigger": "adexchangeclear.com",
+    "type": "domain",
+    "reason": "Malicious ads from ragnarokscanlation.org.com",
+    "severity": "high",
+    "resourceTypes": [
+      "xmlhttprequest",
+      "script",
+      "sub_frame",
+      "other",
+      "image",
+      "main_frame",
+      "font",
+      "media",
+      "stylesheet",
+      "ping"
+    ]
   }
 ]
