@@ -428,8 +428,170 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   }
 });
 
+// ============================================================================
+// MESSAGE VALIDATION UTILITIES
+// ============================================================================
+
+/**
+ * Validate that message sender is from this extension
+ * @param {object} sender - Message sender object
+ * @returns {boolean} True if sender is valid
+ */
+function isValidExtensionSender(sender) {
+  if (!sender || !sender.id) {
+    console.warn('JustUI: Rejected message - no sender ID');
+    return false;
+  }
+
+  if (sender.id !== chrome.runtime.id) {
+    console.warn('JustUI: Rejected message - sender ID mismatch:', sender.id);
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Validate that sender is from popup or settings page
+ * @param {object} sender - Message sender object
+ * @returns {boolean} True if sender is from trusted UI page
+ */
+function isTrustedUISender(sender) {
+  if (!isValidExtensionSender(sender)) {
+    return false;
+  }
+
+  const url = sender.url || '';
+  const trustedPages = [
+    chrome.runtime.getURL('popup.html'),
+    chrome.runtime.getURL('settings.html'),
+    chrome.runtime.getURL('settings-beta.html')
+  ];
+
+  const isTrusted = trustedPages.some(page => url.startsWith(page));
+
+  if (!isTrusted) {
+    console.warn('JustUI: Rejected message - sender not from trusted UI:', url);
+  }
+
+  return isTrusted;
+}
+
+/**
+ * Validate domain string format
+ * @param {string} domain - Domain to validate
+ * @returns {boolean} True if domain is valid
+ */
+function isValidDomain(domain) {
+  if (typeof domain !== 'string' || !domain || domain.length > 253) {
+    return false;
+  }
+
+  // Basic domain pattern (allows wildcards)
+  const domainPattern = /^(\*\.)?([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/;
+
+  return domainPattern.test(domain);
+}
+
+/**
+ * Rate limiting for expensive operations
+ */
+const rateLimiter = (() => {
+  const limits = new Map();
+  const MAX_CALLS_PER_MINUTE = 30;
+  const WINDOW_MS = 60000;
+
+  return {
+    checkLimit(action, sender) {
+      const key = `${action}-${sender.id}-${sender.url}`;
+      const now = Date.now();
+
+      if (!limits.has(key)) {
+        limits.set(key, []);
+      }
+
+      const calls = limits.get(key);
+      const recentCalls = calls.filter(time => (now - time) < WINDOW_MS);
+
+      if (recentCalls.length >= MAX_CALLS_PER_MINUTE) {
+        console.warn(`JustUI: Rate limit exceeded for ${action} from ${sender.url}`);
+        return false;
+      }
+
+      recentCalls.push(now);
+      limits.set(key, recentCalls);
+
+      // Cleanup old entries
+      if (limits.size > 100) {
+        const oldestKey = limits.keys().next().value;
+        limits.delete(oldestKey);
+      }
+
+      return true;
+    }
+  };
+})();
+
 // Handle messages from popup and content scripts
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  // ============================================================================
+  // SECURITY: VALIDATION LAYER
+  // ============================================================================
+
+  // All actions require valid extension sender
+  if (!isValidExtensionSender(sender)) {
+    sendResponse({
+      success: false,
+      error: 'Invalid sender - message rejected'
+    });
+    return false;
+  }
+
+  // Validate request structure
+  if (!request || typeof request.action !== 'string') {
+    console.warn('JustUI: Invalid request structure');
+    sendResponse({
+      success: false,
+      error: 'Invalid request structure'
+    });
+    return false;
+  }
+
+  const { action } = request;
+
+  // Critical actions require trusted UI sender (popup/settings only)
+  const criticalActions = [
+    'updateWhitelist',
+    'refreshDefaultRules',
+    'refreshDefaultWhitelist',
+    'refreshDefaultBlockRequests',
+    'updateRequestBlocking'
+  ];
+
+  if (criticalActions.includes(action)) {
+    if (!isTrustedUISender(sender)) {
+      console.error(`JustUI: Rejected critical action "${action}" from untrusted sender:`, sender.url);
+      sendResponse({
+        success: false,
+        error: 'Unauthorized - action requires trusted UI sender'
+      });
+      return false;
+    }
+
+    // Rate limiting for critical actions
+    if (!rateLimiter.checkLimit(action, sender)) {
+      sendResponse({
+        success: false,
+        error: 'Rate limit exceeded - please try again later'
+      });
+      return false;
+    }
+  }
+
+  // ============================================================================
+  // ACTION HANDLERS (with input validation)
+  // ============================================================================
+
   if (request.action === "getCurrentDomain") {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs[0]) {
@@ -448,6 +610,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   if (request.action === "checkDomainWhitelist") {
     const { domain } = request;
+
+    // VALIDATE INPUT
+    if (!isValidDomain(domain)) {
+      console.warn('JustUI: Invalid domain in checkDomainWhitelist:', domain);
+      sendResponse({
+        success: false,
+        error: 'Invalid domain format'
+      });
+      return false;
+    }
+
     chrome.storage.local.get(["whitelist"], (result) => {
       const whitelist = result.whitelist || [];
       // Check if domain or its parent domain is whitelisted
@@ -465,10 +638,40 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   if (request.action === "updateWhitelist") {
     const { domain, whitelistAction } = request;
+
+    // VALIDATE INPUTS
+    if (!isValidDomain(domain)) {
+      console.warn('JustUI: Invalid domain in updateWhitelist:', domain);
+      sendResponse({
+        success: false,
+        error: 'Invalid domain format'
+      });
+      return false;
+    }
+
+    if (!['add', 'remove'].includes(whitelistAction)) {
+      console.warn('JustUI: Invalid whitelistAction:', whitelistAction);
+      sendResponse({
+        success: false,
+        error: 'Invalid action - must be "add" or "remove"'
+      });
+      return false;
+    }
+
     (async () => {
       try {
         const whitelistResult = await safeStorageGet(["whitelist"]);
         let whitelist = whitelistResult.whitelist || [];
+
+        // Additional validation: Check whitelist size limit
+        if (whitelistAction === "add" && whitelist.length >= 1000) {
+          console.warn('JustUI: Whitelist size limit exceeded');
+          sendResponse({
+            success: false,
+            error: 'Whitelist size limit exceeded (max 1000 domains)'
+          });
+          return;
+        }
 
         if (whitelistAction === "add" && !whitelist.includes(domain)) {
           whitelist.push(domain);
@@ -572,6 +775,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   if (request.action === "updateRequestBlocking") {
     const { enabled } = request;
+
+    // VALIDATE INPUT
+    if (typeof enabled !== 'boolean') {
+      console.warn('JustUI: Invalid enabled parameter:', enabled);
+      sendResponse({
+        success: false,
+        error: 'Invalid parameter - enabled must be boolean'
+      });
+      return false;
+    }
+
     (async () => {
       try {
         await safeStorageSet({ requestBlockingEnabled: enabled });
@@ -591,6 +805,29 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   if (request.action === "recordBlockedRequest") {
     const { data } = request;
+
+    // VALIDATE INPUT
+    if (!data || typeof data !== 'object' || !data.type || !data.url) {
+      console.warn('JustUI: Invalid data in recordBlockedRequest');
+      sendResponse({
+        success: false,
+        error: 'Invalid data format'
+      });
+      return false;
+    }
+
+    // Validate URL format
+    try {
+      new URL(data.url);
+    } catch (e) {
+      console.warn('JustUI: Invalid URL in recordBlockedRequest:', data.url);
+      sendResponse({
+        success: false,
+        error: 'Invalid URL format'
+      });
+      return false;
+    }
+
     // Store blocked request statistics asynchronously
     (async () => {
       try {
@@ -624,7 +861,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         // Note: No user response needed for stats - this is background logging
       }
     })();
-    return false; // No response needed
+    
+    // IMPORTANT: Send response and return true for sendResponse
+    sendResponse({ success: true });
+    return true;
   }
 
   if (request.action === "getRemoteRulesUrl") {

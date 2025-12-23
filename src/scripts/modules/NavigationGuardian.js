@@ -220,6 +220,42 @@ export class NavigationGuardian {
   }
 
   /**
+   * Safely create a DOM element with text content (prevents XSS)
+   * @param {string} tagName - Element tag name
+   * @param {object} options - Element configuration
+   * @returns {HTMLElement}
+   */
+  createSafeElement(tagName, options = {}) {
+    const element = document.createElement(tagName);
+
+    // Set text content safely (auto-escapes HTML)
+    if (options.textContent) {
+      element.textContent = options.textContent;
+    }
+
+    // Set styles via cssText (safe)
+    if (options.style) {
+      element.style.cssText = options.style;
+    }
+
+    // Set attributes
+    if (options.attributes) {
+      Object.entries(options.attributes).forEach(([key, value]) => {
+        element.setAttribute(key, value);
+      });
+    }
+
+    // Append children
+    if (options.children) {
+      options.children.forEach(child => {
+        if (child) element.appendChild(child);
+      });
+    }
+
+    return element;
+  }
+
+  /**
    * Show enhanced confirmation modal with threat details
    * @param {string} targetURL - The target URL
    * @param {Function} callback - Callback function with user decision
@@ -278,11 +314,7 @@ export class NavigationGuardian {
     `;
     document.head.appendChild(style);
 
-    // Escape HTML to prevent XSS
-    const safeURL = targetURL.replace(/[<>&"']/g, function(match) {
-      const entities = { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#x27;' };
-      return entities[match];
-    });
+    // Note: URL sanitization removed - textContent handles escaping automatically
 
     // Determine threat level and message
     const isPopUnder = threatDetails?.isPopUnder || false;
@@ -292,41 +324,111 @@ export class NavigationGuardian {
     const threatLevel = riskScore >= 8 ? 'HIGH' : riskScore >= 4 ? 'MEDIUM' : 'LOW';
     const threatColor = threatLevel === 'HIGH' ? '#dc2626' : threatLevel === 'MEDIUM' ? '#d97706' : '#059669';
     
-    let threatHTML = '';
+    // Build threat details container (if threats exist)
+    let threatDetailsDiv = null;
     if (threatDetails && threats.length > 0) {
-      const topThreats = threats.slice(0, 3); // Show top 3 threats
-      threatHTML = `
-        <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px; margin-bottom: 16px;">
-          <div style="display: flex; align-items: center; margin-bottom: 8px;">
-            <span style="color: ${threatColor}; font-weight: 600; font-size: 14px;">⚠️ Threat Level: ${threatLevel}</span>
-            ${isPopUnder ? '<span style="margin-left: 8px; background: #dc2626; color: white; padding: 2px 6px; border-radius: 4px; font-size: 12px;">POP-UNDER</span>' : ''}
-          </div>
-          <div style="font-size: 13px; color: #7f1d1d;">
-            <strong>Detected threats:</strong>
-            <ul style="margin: 4px 0 0 16px; padding: 0;">
-              ${topThreats.map(threat => `<li style="margin-bottom: 2px;">${threat.type} (Risk: ${threat.score})</li>`).join('')}
-            </ul>
-          </div>
-        </div>
-      `;
+      const topThreats = threats.slice(0, 3);
+
+      // Create threat list items safely
+      const threatListItems = topThreats.map(threat =>
+        this.createSafeElement('li', {
+          textContent: `${threat.type} (Risk: ${threat.score})`,
+          style: 'margin-bottom: 2px;'
+        })
+      );
+
+      const threatList = this.createSafeElement('ul', {
+        style: 'margin: 4px 0 0 16px; padding: 0;',
+        children: threatListItems
+      });
+
+      const threatTitle = this.createSafeElement('strong', {
+        textContent: 'Detected threats:'
+      });
+
+      const threatContent = this.createSafeElement('div', {
+        style: 'font-size: 13px; color: #7f1d1d;',
+        children: [threatTitle, threatList]
+      });
+
+      const threatLevelSpan = this.createSafeElement('span', {
+        textContent: `⚠️ Threat Level: ${threatLevel}`,
+        style: `color: ${threatColor}; font-weight: 600; font-size: 14px;`
+      });
+
+      const threatHeader = this.createSafeElement('div', {
+        style: 'display: flex; align-items: center; margin-bottom: 8px;',
+        children: [threatLevelSpan]
+      });
+
+      // Add pop-under badge if applicable
+      if (isPopUnder) {
+        const popUnderBadge = this.createSafeElement('span', {
+          textContent: 'POP-UNDER',
+          style: 'margin-left: 8px; background: #dc2626; color: white; padding: 2px 6px; border-radius: 4px; font-size: 12px;'
+        });
+        threatHeader.appendChild(popUnderBadge);
+      }
+
+      // Assemble complete threat details
+      threatDetailsDiv = this.createSafeElement('div', {
+        style: 'background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px; margin-bottom: 16px;',
+        children: [threatHeader, threatContent]
+      });
     }
     
-    modal.innerHTML = `
-      <div style="margin-bottom: 16px;">
-        <h3 style="margin: 0 0 12px 0; font-size: 18px; color: #1f2937;">🛡️ Navigation Guardian</h3>
-        <p style="margin: 0; color: #6b7280; line-height: 1.5;">
-          ${isPopUnder ? 'Blocked a pop-under advertisement attempting to open:' : 'This page is trying to navigate to an external site:'}
-        </p>
-      </div>
-      ${threatHTML}
-      <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; margin-bottom: 20px; word-break: break-all; font-family: monospace; font-size: 14px; color: #374151;">
-        ${safeURL}
-      </div>
-      <div style="display: flex; gap: 12px; justify-content: flex-end;">
-        <button id="justui-nav-deny" style="background: #ef4444; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500;">${isPopUnder ? 'Block Ad' : 'Block'}</button>
-        <button id="justui-nav-allow" style="background: #10b981; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500;">Allow</button>
-      </div>
-    `;
+    // Build modal content safely using DOM manipulation
+    const modalHeader = this.createSafeElement('h3', {
+      textContent: '🛡️ Navigation Guardian',
+      style: 'margin: 0 0 12px 0; font-size: 18px; color: #1f2937;'
+    });
+
+    const modalDescription = this.createSafeElement('p', {
+      textContent: isPopUnder
+        ? 'Blocked a pop-under advertisement attempting to open:'
+        : 'This page is trying to navigate to an external site:',
+      style: 'margin: 0; color: #6b7280; line-height: 1.5;'
+    });
+
+    const headerDiv = this.createSafeElement('div', {
+      style: 'margin-bottom: 16px;',
+      children: [modalHeader, modalDescription]
+    });
+
+    // URL display (textContent auto-escapes)
+    const urlDiv = this.createSafeElement('div', {
+      textContent: targetURL,
+      style: 'background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; margin-bottom: 20px; word-break: break-all; font-family: monospace; font-size: 14px; color: #374151;'
+    });
+
+    // Create buttons
+    const denyButton = this.createSafeElement('button', {
+      textContent: isPopUnder ? 'Block Ad' : 'Block',
+      style: 'background: #ef4444; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500;',
+      attributes: { id: 'justui-nav-deny' }
+    });
+
+    const allowButton = this.createSafeElement('button', {
+      textContent: 'Allow',
+      style: 'background: #10b981; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500;',
+      attributes: { id: 'justui-nav-allow' }
+    });
+
+    const buttonContainer = this.createSafeElement('div', {
+      style: 'display: flex; gap: 12px; justify-content: flex-end;',
+      children: [denyButton, allowButton]
+    });
+
+    // Assemble modal content
+    const modalContent = [headerDiv];
+    if (threatDetailsDiv) {
+      modalContent.push(threatDetailsDiv);
+    }
+    modalContent.push(urlDiv, buttonContainer);
+
+    // Clear modal and append safe content
+    modal.innerHTML = ''; // Clear existing content
+    modalContent.forEach(element => modal.appendChild(element));
 
     overlay.appendChild(modal);
 
@@ -361,20 +463,17 @@ export class NavigationGuardian {
       callback(false);
     };
 
-    // Event listeners
-    const allowButton = modal.querySelector('#justui-nav-allow');
-    const denyButton = modal.querySelector('#justui-nav-deny');
-    
-    allowButton.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      handleAllow();
-    }, { once: true });
-    
+    // Event listeners - buttons are already in DOM
     denyButton.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
       handleDeny();
+    }, { once: true });
+
+    allowButton.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      handleAllow();
     }, { once: true });
 
     // Keyboard support
