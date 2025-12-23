@@ -11,15 +11,18 @@ const iconVariants = {
   ),
 };
 
-export default function IconExpandButton({ icon = "plus", children }) {
+export default function IconExpandButton({ icon = "plus", children, onClick }) {
   const iconComponent = iconVariants[icon];
 
   return (
-    <button className="group flex items-center justify-start w-7 h-7 border-none rounded-full cursor-pointer relative overflow-hidden transition-all duration-300 shadow-[2px_2px_10px_rgba(0,0,0,0.199)] bg-[#913ced] hover:w-32 hover:rounded-[40px] active:translate-x-0.5 active:translate-y-0.5">
-      <div className="w-full transition-all duration-300 flex items-center justify-center group-hover:w-[30%] group-hover:pl-5">
+    <button
+      onClick={onClick}
+      className="group flex items-center justify-start w-6 h-6 border-none rounded-full cursor-pointer relative overflow-hidden transition-all duration-300 shadow-[2px_2px_10px_rgba(0,0,0,0.199)] bg-[#913ced] hover:w-32 hover:rounded-[40px] active:translate-x-0.5 active:translate-y-0.5"
+    >
+      <div className="w-full transition-all duration-100 flex items-center justify-center group-hover:w-[20%] group-hover:pl-1">
         {iconComponent}
       </div>
-      <div className="absolute right-0 w-0 opacity-0 text-white text-md font-semibold transition-all duration-300 group-hover:opacity-100 group-hover:w-[80%] group-hover:pr-2.5">
+      <div className="absolute right-0 w-0 opacity-0 text-white text-nowrap !text-[11px] font-semibold transition-all duration-300 group-hover:opacity-100 group-hover:w-[80%] group-hover:pr-2.5">
         {children}
       </div>
     </button>
