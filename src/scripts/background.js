@@ -162,8 +162,7 @@ function createBlockingRules(blockRequests) {
       };
     } else {
       condition = {
-        // urlFilter: `*://${entry.trigger}/*`,
-        urlFilter: `*://*.${entry.trigger}/*`, // Would create: "*://*.pubfuture-ad.com/*"
+        urlFilter: `*://${entry.trigger}/*`, // Fixed: matches both example.com and *.example.com
         resourceTypes,
       };
     }
