@@ -1,11 +1,12 @@
 import { useEffect, useReducer } from "react";
-import Switch from "./components/ui/switch";
 import Loading from "./components/ui/loading";
+import Switch from "./components/ui/switch";
 
-import { H1 } from "./components/ui/typography";
-import DefaultSections from "./components/app/default-sections";
 import CurrentDomain from "./components/app/current-domain";
+import DefaultSections from "./components/app/default-sections";
 import NavigationStats from "./components/app/navigation-stats";
+import RuleStates from "./components/app/rule-stats";
+import { H1 } from "./components/ui/typography";
 
 // Action types
 const actionTypes = {
@@ -134,7 +135,7 @@ const storageAdapter = {
 
 export default function App() {
   const [state, dispatch] = useReducer(protectionReducer, initialState);
-
+  const currentDomain = state?.domain?.current ?? "";
   // Toggle handlers
   const handleToggle = (newState) => {
     dispatch({ type: actionTypes.TOGGLE_MAIN, value: newState });
@@ -160,7 +161,7 @@ export default function App() {
     chrome.runtime.sendMessage(
       {
         action: "updateWhitelist",
-        domain: state.domain.current,
+        domain: currentDomain,
         whitelistAction,
       },
       (response) => {
@@ -172,7 +173,7 @@ export default function App() {
         if (response && response.success) {
           dispatch({
             type: actionTypes.SET_DOMAIN_INFO,
-            domain: state.domain.current,
+            domain: currentDomain,
             isWhitelisted: !state.domain.isWhitelisted,
           });
         }
@@ -181,10 +182,10 @@ export default function App() {
   };
 
   const handleResetStats = () => {
-    if (!state.domain.current) return;
+    if (!currentDomain) return;
 
     const updatedStats = { ...state.stats.domain };
-    delete updatedStats[state.domain.current];
+    delete updatedStats[currentDomain];
 
     chrome.storage.local.set({ domainStats: updatedStats }, () => {
       dispatch({
@@ -336,7 +337,7 @@ export default function App() {
         </div>
 
         <CurrentDomain
-          domain={state.domain.current}
+          domain={currentDomain}
           isWhitelisted={state.domain.isWhitelisted}
           onWhitelistToggle={handleWhitelistToggle}
         />
@@ -348,61 +349,11 @@ export default function App() {
 
         <NavigationStats state={state} />
 
-        {/* Statistics */}
-        {state.domain.current && (
-          <div className="p-4 bg-gray-50 rounded-lg">
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="text-md font-semibold text-gray-800">
-                Removal Stats
-              </h3>
-              {state.stats.domain[state.domain.current] && (
-                <button
-                  onClick={handleResetStats}
-                  className="text-xs px-2 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded transition-colors"
-                  title="Reset statistics for this domain"
-                >
-                  Reset
-                </button>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Default Rules:</span>
-                <span className="text-sm font-semibold text-purple-600">
-                  {state.stats.domain[state.domain.current]
-                    ?.defaultRulesRemoved || 0}{" "}
-                  elements
-                </span>
-              </div>
-              {!!state.stats.domain[state.domain.current]
-                ?.customRulesRemoved && (
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Custom Rules:</span>
-                  <span className="text-sm font-semibold text-violet-600">
-                    {state.stats.domain[state.domain.current]
-                      ?.customRulesRemoved || 0}{" "}
-                    elements
-                  </span>
-                </div>
-              )}
-              <div className="pt-2 mt-2 border-t border-gray-200">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-semibold text-gray-800">
-                    Total:
-                  </span>
-                  <span className="text-sm font-bold text-gray-900">
-                    {(state.stats.domain[state.domain.current]
-                      ?.defaultRulesRemoved || 0) +
-                      (state.stats.domain[state.domain.current]
-                        ?.customRulesRemoved || 0)}{" "}
-                    elements
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        <RuleStates
+          domain={currentDomain}
+          stats={state?.stats?.domain?.[currentDomain]}
+          onResetStats={handleResetStats}
+        />
 
         {/* Settings Link */}
         <div className="pt-4 border-t border-gray-600">
