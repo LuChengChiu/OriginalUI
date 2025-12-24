@@ -1,5 +1,3 @@
-import { useState } from "react";
-
 export default function CheckPath({
   checked = false,
   disabled = false,
@@ -8,11 +6,8 @@ export default function CheckPath({
   onChange,
   ...props
 }) {
-  const [isChecked, setIsChecked] = useState(checked);
-
   const handleChange = (e) => {
     const newChecked = e.target.checked;
-    setIsChecked(newChecked);
     onChange?.(newChecked);
   };
 
@@ -21,7 +16,7 @@ export default function CheckPath({
       <input
         type="checkbox"
         id={id}
-        checked={isChecked}
+        checked={checked}
         onChange={handleChange}
         disabled={disabled}
         className="absolute opacity-0 pointer-events-none"
@@ -41,11 +36,11 @@ export default function CheckPath({
           <path
             className={`
               transition-all duration-300 delay-100
-              ${isChecked ? "[stroke-dashoffset:0]" : "[stroke-dashoffset:40]"}
+              ${checked ? "[stroke-dashoffset:0]" : "[stroke-dashoffset:40]"}
             `}
             style={{
               strokeDasharray: "40",
-              strokeDashoffset: isChecked ? "0" : "40",
+              strokeDashoffset: checked ? "0" : "40",
             }}
             d="M4 12L10 18L20 6"
             stroke="white"

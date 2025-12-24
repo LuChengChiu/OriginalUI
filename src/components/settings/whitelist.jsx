@@ -1,4 +1,4 @@
-import { memo, useCallback } from "react";
+import { useCallback } from "react";
 import TagsInput from "../ui/tags-input";
 import { H1, Text } from "../ui/typography";
 

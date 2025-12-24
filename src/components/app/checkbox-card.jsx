@@ -8,7 +8,6 @@ export default function CheckboxCard({
   onChange,
   label,
 }) {
-  console.log("checked: ", checked);
   return (
     <label
       className={`relative flex justify-center items-center cursor-pointer select-none w-40 h-9 border border-[#BB92E7] rounded-sm 
