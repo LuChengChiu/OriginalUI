@@ -29,11 +29,10 @@
  * @author JustUI Team
  */
 
-import { MAX_Z_INDEX } from '../constants.js';
-import { LIFECYCLE_PHASES, CleanableModule } from './ICleanable.js';
-import { SecurityValidator } from './navigation-guardian/SecurityValidator.js';
-import { ModalManager } from './navigation-guardian/ModalManager.js';
-import { isExtensionContextValid, safeStorageSet } from '../utils/chromeApiSafe.js';
+import { MAX_Z_INDEX } from '../../constants.js';
+import { LIFECYCLE_PHASES, CleanableModule } from '../ICleanable.js';
+import { SecurityValidator } from './SecurityValidator.js';
+import { ModalManager } from './ModalManager.js';
 
 /**
  * NavigationGuardian class providing comprehensive cross-origin navigation protection
@@ -132,28 +131,19 @@ export class NavigationGuardian extends CleanableModule {
       maxPendingReached: 0
     };
     
-    // Setup modal manager callbacks with null safety checks
-    if (this.modalManager && typeof this.modalManager.setStatisticsCallback === 'function') {
-      this.modalManager.setStatisticsCallback((allowed) => {
-        if (allowed) {
-          this.navigationStats.allowedCount++;
-        } else {
-          this.navigationStats.blockedCount++;
-        }
-        this.updateNavigationStats();
-      });
-    } else {
-      console.error('JustUI: ModalManager not properly initialized');
-    }
+    // Setup modal manager callbacks
+    this.modalManager.setStatisticsCallback((allowed) => {
+      if (allowed) {
+        this.navigationStats.allowedCount++;
+      } else {
+        this.navigationStats.blockedCount++;
+      }
+      this.updateNavigationStats();
+    });
     
-    if (this.modalManager && typeof this.modalManager.setURLValidator === 'function' &&
-        this.securityValidator && typeof this.securityValidator.validateURLSecurity === 'function') {
-      this.modalManager.setURLValidator((url) => {
-        return this.securityValidator.validateURLSecurity(url);
-      });
-    } else {
-      console.error('JustUI: SecurityValidator or ModalManager not properly initialized');
-    }
+    this.modalManager.setURLValidator((url) => {
+      return this.securityValidator.validateURLSecurity(url);
+    });
     
     console.log('JustUI: NavigationGuardian initialized with enhanced modular cleanup');
   }
@@ -335,25 +325,14 @@ export class NavigationGuardian extends CleanableModule {
       }
       
       if (this.isEnabled && this.isCrossOrigin(url) && !this.isNavigationTrusted(url)) {
-        // Analyze URL for threats using SecurityValidator (with null safety)
-        let urlAnalysis = { riskScore: 0, threats: [], isPopUnder: false }; // Default safe values
-        
-        if (this.securityValidator && typeof this.securityValidator.analyzeThreats === 'function') {
-          try {
-            urlAnalysis = this.securityValidator.analyzeThreats(url);
-          } catch (analysisError) {
-            console.error('JustUI: Error analyzing URL threats:', analysisError);
-            // Use default safe values and continue execution
-          }
-        } else {
-          console.warn('JustUI: SecurityValidator not available for threat analysis');
-        }
+        // Analyze URL for threats using SecurityValidator
+        const urlAnalysis = this.securityValidator.analyzeThreats(url);
         
         // Combine pop-under analysis from injected script with URL analysis
         const combinedAnalysis = {
-          riskScore: (popUnderAnalysis?.score || 0) + (urlAnalysis?.riskScore || 0),
-          threats: [...(popUnderAnalysis?.threats || []), ...(urlAnalysis?.threats || [])],
-          isPopUnder: (popUnderAnalysis?.isPopUnder || false) || (urlAnalysis?.isPopUnder || false)
+          riskScore: (popUnderAnalysis?.score || 0) + urlAnalysis.riskScore,
+          threats: [...(popUnderAnalysis?.threats || []), ...urlAnalysis.threats],
+          isPopUnder: (popUnderAnalysis?.isPopUnder || false) || urlAnalysis.isPopUnder
         };
         
         // Track this modal to prevent duplicates
@@ -403,40 +382,15 @@ export class NavigationGuardian extends CleanableModule {
    * @param {Object} threatDetails - Optional threat analysis details
    */
   showNavigationModal(targetURL, callback, threatDetails = null) {
-    // Validate callback function
-    if (!callback || typeof callback !== 'function') {
-      console.error('JustUI: Invalid callback provided to showNavigationModal');
-      return;
-    }
-
-    // Check if ModalManager is available
-    if (!this.modalManager || typeof this.modalManager.showConfirmationModal !== 'function') {
-      console.error('JustUI: ModalManager not available, denying navigation by default');
-      try {
-        callback(false);
-      } catch (callbackError) {
-        console.error('JustUI: Error in callback during fallback:', callbackError);
-      }
-      return;
-    }
-
     // Use ModalManager for modal display
     this.modalManager.showConfirmationModal({
       url: targetURL,
       threatDetails: threatDetails
     }).then(allowed => {
-      try {
-        callback(allowed);
-      } catch (callbackError) {
-        console.error('JustUI: Error in navigation modal callback:', callbackError);
-      }
+      callback(allowed);
     }).catch(error => {
       console.error('JustUI: Modal error:', error);
-      try {
-        callback(false); // Default to deny for safety
-      } catch (callbackError) {
-        console.error('JustUI: Error in fallback callback:', callbackError);
-      }
+      callback(false); // Default to deny for safety
     });
   }
 
@@ -445,22 +399,8 @@ export class NavigationGuardian extends CleanableModule {
    */
   injectNavigationScript() {
     try {
-      // Validate Chrome extension context before using Chrome APIs
-      if (!isExtensionContextValid()) {
-        console.warn('JustUI: Chrome extension context invalid, skipping script injection');
-        return;
-      }
-
       const script = document.createElement('script');
-      
-      // Safe Chrome API call with context validation
-      try {
-        script.src = chrome.runtime.getURL('scripts/injected-script.js');
-      } catch (apiError) {
-        console.error('JustUI: Chrome API call failed:', apiError);
-        return;
-      }
-      
+      script.src = chrome.runtime.getURL('scripts/injected-script.js');
       script.onload = () => script.remove();
       (document.head || document.documentElement).appendChild(script);
       console.log('JustUI: Navigation Guardian injected script loaded');
@@ -472,14 +412,8 @@ export class NavigationGuardian extends CleanableModule {
   /**
    * Update navigation statistics in storage
    */
-  async updateNavigationStats() {
-    try {
-      // Use safe storage API with context validation and retry logic
-      await safeStorageSet({ navigationStats: this.navigationStats });
-    } catch (error) {
-      console.error('JustUI: Failed to update navigation statistics:', error);
-      // Non-critical failure, continue operation
-    }
+  updateNavigationStats() {
+    chrome.storage.local.set({ navigationStats: this.navigationStats });
   }
 
   /**
@@ -569,26 +503,6 @@ export class NavigationGuardian extends CleanableModule {
    */
   getStats() {
     return { ...this.navigationStats };
-  }
-
-  /**
-   * Get current navigation statistics (alias for backward compatibility)
-   * @returns {Object} Navigation statistics
-   */
-  getNavigationStats() {
-    return this.getStats();
-  }
-
-  /**
-   * Enable or disable NavigationGuardian protection
-   * @param {boolean} enabled - True to enable, false to disable
-   */
-  setEnabled(enabled) {
-    if (enabled) {
-      this.enable();
-    } else {
-      this.disable();
-    }
   }
 
   /**

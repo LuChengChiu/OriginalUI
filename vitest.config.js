@@ -7,6 +7,15 @@ import { defineConfig } from 'vitest/config'
 import { resolve } from 'path'
 
 export default defineConfig({
+  build: {
+    rollupOptions: {
+      external: [],
+      output: {
+        format: 'es',
+        preserveModules: false
+      }
+    }
+  },
   test: {
     // Environment setup
     environment: 'jsdom',
@@ -16,6 +25,11 @@ export default defineConfig({
     globals: true,
     clearMocks: true,
     restoreMocks: true,
+    
+    // Transform configuration for unicode handling
+    transformMode: {
+      ssr: ['**/*.{js,ts}']
+    },
     
     // Coverage configuration
     coverage: {
@@ -56,6 +70,7 @@ export default defineConfig({
     // File patterns
     include: [
       'test/**/*.{test,spec}.{js,ts}',
+      'tests/**/*.{test,spec}.{js,ts}',
       'src/**/*.{test,spec}.{js,ts}'
     ],
     exclude: [
@@ -103,8 +118,19 @@ export default defineConfig({
     }
   },
   
-  // Esbuild configuration for better compatibility
-  esbuild: {
-    target: 'es2020'
-  }
+  // Use custom transform to avoid unicode parsing issues
+  plugins: [
+    {
+      name: 'unicode-bypass',
+      transform(code, id) {
+        if (id.includes('.test.js') || id.includes('SecurityValidator')) {
+          // Skip problematic transformations for test files
+          return null;
+        }
+      }
+    }
+  ],
+  
+  // Esbuild configuration - disable for unicode files
+  esbuild: false
 })

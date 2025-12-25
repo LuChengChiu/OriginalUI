@@ -5,8 +5,8 @@ import {
   isExtensionContextValid,
   safeStorageGet,
   safeStorageSet,
-  safeStorageSetWithValidation
-} from './utils/chromeApiSafe.js';
+  safeStorageSetWithValidation,
+} from "./utils/chromeApiSafe.js";
 
 const REMOTE_RULES_URL =
   "https://raw.githubusercontent.com/LuChengChiu/JustUI/main/src/data/defaultRules.json";
@@ -192,7 +192,9 @@ function createBlockingRules(blockRequests) {
 async function updateBlockingRules() {
   // Context validation before proceeding
   if (!isExtensionContextValid()) {
-    console.warn('JustUI: Extension context invalid, skipping blocking rules update');
+    console.warn(
+      "JustUI: Extension context invalid, skipping blocking rules update"
+    );
     return;
   }
 
@@ -200,10 +202,7 @@ async function updateBlockingRules() {
     console.log("JustUI: Starting updateBlockingRules...");
 
     const { blockRequestList = [], requestBlockingEnabled = true } =
-      await safeStorageGet([
-        "blockRequestList",
-        "requestBlockingEnabled",
-      ]);
+      await safeStorageGet(["blockRequestList", "requestBlockingEnabled"]);
 
     console.log("JustUI: Storage retrieved:", {
       blockRequestListCount: blockRequestList.length,
@@ -265,7 +264,9 @@ async function updateBlockingRules() {
 chrome.runtime.onInstalled.addListener(async () => {
   // Early context validation check
   if (!isExtensionContextValid()) {
-    console.warn('JustUI: Extension context invalid during installation, skipping initialization');
+    console.warn(
+      "JustUI: Extension context invalid during installation, skipping initialization"
+    );
     return;
   }
 
@@ -310,12 +311,15 @@ chrome.runtime.onInstalled.addListener(async () => {
       updates.popUnderProtectionEnabled = true;
     if (result.scriptAnalysisEnabled === undefined)
       updates.scriptAnalysisEnabled = true;
-    
+
     // Smart dependency: Ensure Script Analysis is enabled when Navigation Guardian is active
-    if (result.navigationGuardEnabled !== false && result.scriptAnalysisEnabled === false) {
+    if (
+      result.navigationGuardEnabled !== false &&
+      result.scriptAnalysisEnabled === false
+    ) {
       updates.scriptAnalysisEnabled = true;
     }
-    
+
     // Master toggle dependency: Auto-enable both layers when Pop-under Protection is active
     if (result.popUnderProtectionEnabled !== false) {
       if (result.scriptAnalysisEnabled === false) {
@@ -345,30 +349,39 @@ chrome.runtime.onInstalled.addListener(async () => {
 
     // Merge default whitelist with user's custom additions
     const customWhitelist = result.customWhitelist || [];
-    updates.whitelist = [
-      ...new Set([...defaultWhitelist, ...customWhitelist]),
-    ];
+    updates.whitelist = [...new Set([...defaultWhitelist, ...customWhitelist])];
 
     if (Object.keys(updates).length > 0) {
       try {
         // Use simple storage set for installation to avoid validation issues
         await chrome.storage.local.set(updates);
-        console.log('JustUI Installation: Successfully saved all settings:', Object.keys(updates));
+        console.log(
+          "JustUI Installation: Successfully saved all settings:",
+          Object.keys(updates)
+        );
         // Initialize request blocking rules after storage is set
         updateBlockingRules();
       } catch (error) {
-        console.error('JustUI Installation Failed: Could not save settings:', error);
+        console.error(
+          "JustUI Installation Failed: Could not save settings:",
+          error
+        );
         // Fallback: try to save critical settings individually
         try {
-          await chrome.storage.local.set({ 
+          await chrome.storage.local.set({
             defaultRules: updates.defaultRules,
             blockRequestList: updates.blockRequestList,
-            isActive: updates.isActive
+            isActive: updates.isActive,
           });
-          console.log('JustUI Installation: Saved critical settings as fallback');
+          console.log(
+            "JustUI Installation: Saved critical settings as fallback"
+          );
           updateBlockingRules();
         } catch (fallbackError) {
-          console.error('JustUI Installation: Even fallback failed:', fallbackError);
+          console.error(
+            "JustUI Installation: Even fallback failed:",
+            fallbackError
+          );
         }
       }
     } else {
@@ -376,12 +389,18 @@ chrome.runtime.onInstalled.addListener(async () => {
       updateBlockingRules();
     }
   } catch (error) {
-    console.error('JustUI: Failed to initialize default storage during installation:', error);
+    console.error(
+      "JustUI: Failed to initialize default storage during installation:",
+      error
+    );
     // Attempt to initialize blocking rules even if storage initialization failed
     try {
       updateBlockingRules();
     } catch (rulesError) {
-      console.error('JustUI: Failed to initialize blocking rules during installation:', rulesError);
+      console.error(
+        "JustUI: Failed to initialize blocking rules during installation:",
+        rulesError
+      );
     }
   }
 
@@ -395,7 +414,9 @@ chrome.runtime.onInstalled.addListener(async () => {
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   // Context validation before proceeding
   if (!isExtensionContextValid()) {
-    console.warn('JustUI: Extension context invalid during alarm listener, skipping update');
+    console.warn(
+      "JustUI: Extension context invalid during alarm listener, skipping update"
+    );
     return;
   }
 
@@ -409,24 +430,34 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
         ]);
 
       // Update rules but preserve user's whitelist additions
-      const storageResult = await safeStorageGet(["whitelist", "blockRequestList"]);
+      const storageResult = await safeStorageGet([
+        "whitelist",
+        "blockRequestList",
+      ]);
       const currentWhitelist = storageResult.whitelist || [];
       const mergedWhitelist = [
         ...new Set([...defaultWhitelist, ...currentWhitelist]),
       ];
 
-      const updateResult = await safeStorageSetWithValidation({
-        defaultRules,
-        whitelist: mergedWhitelist,
-        blockRequestList: defaultBlockRequests,
-      }, ['blockRequestList', 'defaultRules', 'whitelist'], { requireValidation: false, validateWrite: false });
-      
+      const updateResult = await safeStorageSetWithValidation(
+        {
+          defaultRules,
+          whitelist: mergedWhitelist,
+          blockRequestList: defaultBlockRequests,
+        },
+        ["blockRequestList", "defaultRules", "whitelist"],
+        { requireValidation: false, validateWrite: false }
+      );
+
       if (!updateResult.success) {
-        console.error('JustUI Update Failed: Scheduled update could not be completed:', {
-          inconsistencies: updateResult.validationResult?.inconsistencies,
-          context: 'scheduled-update',
-          timestamp: new Date().toISOString()
-        });
+        console.error(
+          "JustUI Update Failed: Scheduled update could not be completed:",
+          {
+            inconsistencies: updateResult.validationResult?.inconsistencies,
+            context: "scheduled-update",
+            timestamp: new Date().toISOString(),
+          }
+        );
         // For scheduled updates, we can be more strict and skip rule updates if storage failed
         return;
       }
@@ -434,7 +465,10 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
       // Update blocking rules after storage update
       updateBlockingRules();
     } catch (error) {
-      console.error('JustUI: Failed to update defaults during scheduled alarm:', error);
+      console.error(
+        "JustUI: Failed to update defaults during scheduled alarm:",
+        error
+      );
     }
   }
 });
@@ -450,12 +484,12 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
  */
 function isValidExtensionSender(sender) {
   if (!sender || !sender.id) {
-    console.warn('JustUI: Rejected message - no sender ID');
+    console.warn("JustUI: Rejected message - no sender ID");
     return false;
   }
 
   if (sender.id !== chrome.runtime.id) {
-    console.warn('JustUI: Rejected message - sender ID mismatch:', sender.id);
+    console.warn("JustUI: Rejected message - sender ID mismatch:", sender.id);
     return false;
   }
 
@@ -472,17 +506,17 @@ function isTrustedUISender(sender) {
     return false;
   }
 
-  const url = sender.url || '';
+  const url = sender.url || "";
   const trustedPages = [
-    chrome.runtime.getURL('popup.html'),
-    chrome.runtime.getURL('settings.html'),
-    chrome.runtime.getURL('settings-beta.html')
+    chrome.runtime.getURL("popup.html"),
+    chrome.runtime.getURL("settings.html"),
+    chrome.runtime.getURL("settings-beta.html"),
   ];
 
-  const isTrusted = trustedPages.some(page => url.startsWith(page));
+  const isTrusted = trustedPages.some((page) => url.startsWith(page));
 
   if (!isTrusted) {
-    console.warn('JustUI: Rejected message - sender not from trusted UI:', url);
+    console.warn("JustUI: Rejected message - sender not from trusted UI:", url);
   }
 
   return isTrusted;
@@ -494,12 +528,13 @@ function isTrustedUISender(sender) {
  * @returns {boolean} True if domain is valid
  */
 function isValidDomain(domain) {
-  if (typeof domain !== 'string' || !domain || domain.length > 253) {
+  if (typeof domain !== "string" || !domain || domain.length > 253) {
     return false;
   }
 
   // Basic domain pattern (allows wildcards)
-  const domainPattern = /^(\*\.)?([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/;
+  const domainPattern =
+    /^(\*\.)?([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/;
 
   return domainPattern.test(domain);
 }
@@ -522,10 +557,12 @@ const rateLimiter = (() => {
       }
 
       const calls = limits.get(key);
-      const recentCalls = calls.filter(time => (now - time) < WINDOW_MS);
+      const recentCalls = calls.filter((time) => now - time < WINDOW_MS);
 
       if (recentCalls.length >= MAX_CALLS_PER_MINUTE) {
-        console.warn(`JustUI: Rate limit exceeded for ${action} from ${sender.url}`);
+        console.warn(
+          `JustUI: Rate limit exceeded for ${action} from ${sender.url}`
+        );
         return false;
       }
 
@@ -539,7 +576,7 @@ const rateLimiter = (() => {
       }
 
       return true;
-    }
+    },
   };
 })();
 
@@ -553,17 +590,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (!isValidExtensionSender(sender)) {
     sendResponse({
       success: false,
-      error: 'Invalid sender - message rejected'
+      error: "Invalid sender - message rejected",
     });
     return false;
   }
 
   // Validate request structure
-  if (!request || typeof request.action !== 'string') {
-    console.warn('JustUI: Invalid request structure');
+  if (!request || typeof request.action !== "string") {
+    console.warn("JustUI: Invalid request structure");
     sendResponse({
       success: false,
-      error: 'Invalid request structure'
+      error: "Invalid request structure",
     });
     return false;
   }
@@ -572,19 +609,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   // Critical actions require trusted UI sender (popup/settings only)
   const criticalActions = [
-    'updateWhitelist',
-    'refreshDefaultRules',
-    'refreshDefaultWhitelist',
-    'refreshDefaultBlockRequests',
-    'updateRequestBlocking'
+    "updateWhitelist",
+    "refreshDefaultRules",
+    "refreshDefaultWhitelist",
+    "refreshDefaultBlockRequests",
+    "updateRequestBlocking",
   ];
 
   if (criticalActions.includes(action)) {
     if (!isTrustedUISender(sender)) {
-      console.error(`JustUI: Rejected critical action "${action}" from untrusted sender:`, sender.url);
+      console.error(
+        `JustUI: Rejected critical action "${action}" from untrusted sender:`,
+        sender.url
+      );
       sendResponse({
         success: false,
-        error: 'Unauthorized - action requires trusted UI sender'
+        error: "Unauthorized - action requires trusted UI sender",
       });
       return false;
     }
@@ -593,7 +633,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (!rateLimiter.checkLimit(action, sender)) {
       sendResponse({
         success: false,
-        error: 'Rate limit exceeded - please try again later'
+        error: "Rate limit exceeded - please try again later",
       });
       return false;
     }
@@ -624,10 +664,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     // VALIDATE INPUT
     if (!isValidDomain(domain)) {
-      console.warn('JustUI: Invalid domain in checkDomainWhitelist:', domain);
+      console.warn("JustUI: Invalid domain in checkDomainWhitelist:", domain);
       sendResponse({
         success: false,
-        error: 'Invalid domain format'
+        error: "Invalid domain format",
       });
       return false;
     }
@@ -652,19 +692,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     // VALIDATE INPUTS
     if (!isValidDomain(domain)) {
-      console.warn('JustUI: Invalid domain in updateWhitelist:', domain);
+      console.warn("JustUI: Invalid domain in updateWhitelist:", domain);
       sendResponse({
         success: false,
-        error: 'Invalid domain format'
+        error: "Invalid domain format",
       });
       return false;
     }
 
-    if (!['add', 'remove'].includes(whitelistAction)) {
-      console.warn('JustUI: Invalid whitelistAction:', whitelistAction);
+    if (!["add", "remove"].includes(whitelistAction)) {
+      console.warn("JustUI: Invalid whitelistAction:", whitelistAction);
       sendResponse({
         success: false,
-        error: 'Invalid action - must be "add" or "remove"'
+        error: 'Invalid action - must be "add" or "remove"',
       });
       return false;
     }
@@ -676,10 +716,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
         // Additional validation: Check whitelist size limit
         if (whitelistAction === "add" && whitelist.length >= 1000) {
-          console.warn('JustUI: Whitelist size limit exceeded');
+          console.warn("JustUI: Whitelist size limit exceeded");
           sendResponse({
             success: false,
-            error: 'Whitelist size limit exceeded (max 1000 domains)'
+            error: "Whitelist size limit exceeded (max 1000 domains)",
           });
           return;
         }
@@ -690,9 +730,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           whitelist = whitelist.filter((d) => d !== domain);
         }
 
-        const whitelistUpdateResult = await safeStorageSetWithValidation({ whitelist }, ['whitelist']);
+        const whitelistUpdateResult = await safeStorageSetWithValidation(
+          { whitelist },
+          ["whitelist"]
+        );
         if (!whitelistUpdateResult.success) {
-          throw new Error(`Whitelist update validation failed: ${whitelistUpdateResult.validationResult?.inconsistencies?.join(', ')}`);
+          throw new Error(
+            `Whitelist update validation failed: ${whitelistUpdateResult.validationResult?.inconsistencies?.join(
+              ", "
+            )}`
+          );
         }
         sendResponse({ success: true, whitelist });
         // Notify content script of whitelist change
@@ -709,11 +756,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           });
         });
       } catch (error) {
-        console.error('Failed to update whitelist:', error);
-        sendResponse({ 
-          success: false, 
-          error: 'Failed to save whitelist changes. Please try again.',
-          details: error.message 
+        console.error("Failed to update whitelist:", error);
+        sendResponse({
+          success: false,
+          error: "Failed to save whitelist changes. Please try again.",
+          details: error.message,
         });
       }
     })();
@@ -727,11 +774,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         await safeStorageSet({ defaultRules: rules });
         sendResponse({ success: true, rules });
       } catch (error) {
-        console.error('Failed to refresh default rules:', error);
-        sendResponse({ 
-          success: false, 
-          error: 'Failed to update default rules. Please check your internet connection.',
-          details: error.message 
+        console.error("Failed to refresh default rules:", error);
+        sendResponse({
+          success: false,
+          error:
+            "Failed to update default rules. Please check your internet connection.",
+          details: error.message,
         });
       }
     })();
@@ -751,11 +799,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         await safeStorageSet({ whitelist: mergedWhitelist });
         sendResponse({ success: true, whitelist: mergedWhitelist });
       } catch (error) {
-        console.error('Failed to refresh default whitelist:', error);
-        sendResponse({ 
-          success: false, 
-          error: 'Failed to update whitelist. Please check your internet connection.',
-          details: error.message 
+        console.error("Failed to refresh default whitelist:", error);
+        sendResponse({
+          success: false,
+          error:
+            "Failed to update whitelist. Please check your internet connection.",
+          details: error.message,
         });
       }
     })();
@@ -766,18 +815,26 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     (async () => {
       try {
         const blockRequests = await fetchDefaultBlockRequests();
-        const blockRequestUpdateResult = await safeStorageSetWithValidation({ blockRequestList: blockRequests }, ['blockRequestList']);
+        const blockRequestUpdateResult = await safeStorageSetWithValidation(
+          { blockRequestList: blockRequests },
+          ["blockRequestList"]
+        );
         if (!blockRequestUpdateResult.success) {
-          throw new Error(`Block request list update validation failed: ${blockRequestUpdateResult.validationResult?.inconsistencies?.join(', ')}`);
+          throw new Error(
+            `Block request list update validation failed: ${blockRequestUpdateResult.validationResult?.inconsistencies?.join(
+              ", "
+            )}`
+          );
         }
         await updateBlockingRules();
         sendResponse({ success: true, blockRequests });
       } catch (error) {
-        console.error('Failed to refresh default block requests:', error);
-        sendResponse({ 
-          success: false, 
-          error: 'Failed to update blocking rules. Some network protection may be unavailable.',
-          details: error.message 
+        console.error("Failed to refresh default block requests:", error);
+        sendResponse({
+          success: false,
+          error:
+            "Failed to update blocking rules. Some network protection may be unavailable.",
+          details: error.message,
         });
       }
     })();
@@ -788,11 +845,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const { enabled } = request;
 
     // VALIDATE INPUT
-    if (typeof enabled !== 'boolean') {
-      console.warn('JustUI: Invalid enabled parameter:', enabled);
+    if (typeof enabled !== "boolean") {
+      console.warn("JustUI: Invalid enabled parameter:", enabled);
       sendResponse({
         success: false,
-        error: 'Invalid parameter - enabled must be boolean'
+        error: "Invalid parameter - enabled must be boolean",
       });
       return false;
     }
@@ -803,11 +860,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         await updateBlockingRules();
         sendResponse({ success: true, enabled });
       } catch (error) {
-        console.error('Failed to update request blocking setting:', error);
-        sendResponse({ 
-          success: false, 
-          error: 'Failed to update network blocking settings. Protection status may be inconsistent.',
-          details: error.message 
+        console.error("Failed to update request blocking setting:", error);
+        sendResponse({
+          success: false,
+          error:
+            "Failed to update network blocking settings. Protection status may be inconsistent.",
+          details: error.message,
         });
       }
     })();
@@ -818,11 +876,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const { data } = request;
 
     // VALIDATE INPUT
-    if (!data || typeof data !== 'object' || !data.type || !data.url) {
-      console.warn('JustUI: Invalid data in recordBlockedRequest');
+    if (!data || typeof data !== "object" || !data.type || !data.url) {
+      console.warn("JustUI: Invalid data in recordBlockedRequest");
       sendResponse({
         success: false,
-        error: 'Invalid data format'
+        error: "Invalid data format",
       });
       return false;
     }
@@ -831,10 +889,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     try {
       new URL(data.url);
     } catch (e) {
-      console.warn('JustUI: Invalid URL in recordBlockedRequest:', data.url);
+      console.warn("JustUI: Invalid URL in recordBlockedRequest:", data.url);
       sendResponse({
         success: false,
-        error: 'Invalid URL format'
+        error: "Invalid URL format",
       });
       return false;
     }
@@ -868,11 +926,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
         await safeStorageSet({ blockedRequestStats: stats });
       } catch (error) {
-        console.error('Failed to store blocked request stats:', error);
+        console.error("Failed to store blocked request stats:", error);
         // Note: No user response needed for stats - this is background logging
       }
     })();
-    
+
     // IMPORTANT: Send response and return true for sendResponse
     sendResponse({ success: true });
     return true;
@@ -888,24 +946,38 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === "local") {
     // Smart dependency enforcement: Auto-enable Script Analysis when Navigation Guardian is enabled
-    if (changes.navigationGuardEnabled && changes.navigationGuardEnabled.newValue === true) {
+    if (
+      changes.navigationGuardEnabled &&
+      changes.navigationGuardEnabled.newValue === true
+    ) {
       (async () => {
         try {
-          const scriptAnalysisResult = await safeStorageGet(['scriptAnalysisEnabled']);
+          const scriptAnalysisResult = await safeStorageGet([
+            "scriptAnalysisEnabled",
+          ]);
           if (!scriptAnalysisResult.scriptAnalysisEnabled) {
             await safeStorageSet({ scriptAnalysisEnabled: true });
           }
         } catch (error) {
-          console.error('Failed to enable script analysis for navigation guard dependency:', error);
+          console.error(
+            "Failed to enable script analysis for navigation guard dependency:",
+            error
+          );
         }
       })();
     }
-    
+
     // Master toggle enforcement: Auto-enable both layers when Pop-under Protection is enabled
-    if (changes.popUnderProtectionEnabled && changes.popUnderProtectionEnabled.newValue === true) {
+    if (
+      changes.popUnderProtectionEnabled &&
+      changes.popUnderProtectionEnabled.newValue === true
+    ) {
       (async () => {
         try {
-          const dependenciesResult = await safeStorageGet(['scriptAnalysisEnabled', 'navigationGuardEnabled']);
+          const dependenciesResult = await safeStorageGet([
+            "scriptAnalysisEnabled",
+            "navigationGuardEnabled",
+          ]);
           const updates = {};
           if (!dependenciesResult.scriptAnalysisEnabled) {
             updates.scriptAnalysisEnabled = true;
@@ -917,7 +989,10 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
             await safeStorageSet(updates);
           }
         } catch (error) {
-          console.error('Failed to enable pop-under protection dependencies:', error);
+          console.error(
+            "Failed to enable pop-under protection dependencies:",
+            error
+          );
         }
       })();
     }

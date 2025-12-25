@@ -20,10 +20,7 @@ export default function RuleStates({ domain, stats, onResetStats }) {
   return (
     <div className="py-2 bg-gray-50 rounded-lg">
       <div className="flex justify-between items-center mb-3">
-        <div className="flex w-full items-center justify-between">
-          <H3>Removal Stats</H3>
-          <H4 as="h6">elements</H4>
-        </div>
+        <H3>Removal Stats</H3>
 
         {stats && onResetStats && (
           <IconExpandButton
@@ -37,12 +34,15 @@ export default function RuleStates({ domain, stats, onResetStats }) {
       </div>
 
       <div className="space-y-2 pr-2">
-        {renderRuleCount("Default Rules:", `${defaultCount}`)}
-        {customCount > 0 && renderRuleCount("Custom Rules:", `${customCount}`)}
+        {renderRuleCount("Default Rules:", `${defaultCount} elements`)}
+        {customCount > 0 &&
+          renderRuleCount("Custom Rules:", `${customCount} elements`)}
 
         <div className="flex mt-2 pt-2 border-t border-gray-200 justify-between items-center">
           <H4>Total:</H4>
-          <Text className="font-bold">{defaultCount + customCount}</Text>
+          <Text className="font-bold">
+            {defaultCount + customCount} elements
+          </Text>
         </div>
       </div>
     </div>

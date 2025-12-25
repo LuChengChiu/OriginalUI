@@ -5,8 +5,6 @@
  * pop-unders, redirects, and cross-origin attacks. Features intelligent modal confirmation system,
  * whitelist management, and comprehensive statistics tracking with memory leak prevention.
  * 
- * Now modularized with SecurityValidator and ModalManager for improved maintainability.
- * 
  * @example
  * // Basic initialization
  * const guardian = new NavigationGuardian();
@@ -31,9 +29,6 @@
 
 import { MAX_Z_INDEX } from '../constants.js';
 import { LIFECYCLE_PHASES, CleanableModule } from './ICleanable.js';
-import { SecurityValidator } from './navigation-guardian/SecurityValidator.js';
-import { ModalManager } from './navigation-guardian/ModalManager.js';
-import { isExtensionContextValid, safeStorageSet } from '../utils/chromeApiSafe.js';
 
 /**
  * NavigationGuardian class providing comprehensive cross-origin navigation protection
@@ -47,20 +42,6 @@ export class NavigationGuardian extends CleanableModule {
    */
   constructor() {
     super();
-    
-    /**
-     * Security validator for URL and threat validation
-     * @type {SecurityValidator}
-     * @private
-     */
-    this.securityValidator = new SecurityValidator();
-    
-    /**
-     * Modal manager for UI confirmation modals
-     * @type {ModalManager}
-     * @private
-     */
-    this.modalManager = new ModalManager();
     
     /**
      * Enable/disable state for navigation protection
@@ -132,30 +113,7 @@ export class NavigationGuardian extends CleanableModule {
       maxPendingReached: 0
     };
     
-    // Setup modal manager callbacks with null safety checks
-    if (this.modalManager && typeof this.modalManager.setStatisticsCallback === 'function') {
-      this.modalManager.setStatisticsCallback((allowed) => {
-        if (allowed) {
-          this.navigationStats.allowedCount++;
-        } else {
-          this.navigationStats.blockedCount++;
-        }
-        this.updateNavigationStats();
-      });
-    } else {
-      console.error('JustUI: ModalManager not properly initialized');
-    }
-    
-    if (this.modalManager && typeof this.modalManager.setURLValidator === 'function' &&
-        this.securityValidator && typeof this.securityValidator.validateURLSecurity === 'function') {
-      this.modalManager.setURLValidator((url) => {
-        return this.securityValidator.validateURLSecurity(url);
-      });
-    } else {
-      console.error('JustUI: SecurityValidator or ModalManager not properly initialized');
-    }
-    
-    console.log('JustUI: NavigationGuardian initialized with enhanced modular cleanup');
+    console.log('JustUI: NavigationGuardian initialized with enhanced cleanup');
   }
 
   /**
@@ -335,25 +293,14 @@ export class NavigationGuardian extends CleanableModule {
       }
       
       if (this.isEnabled && this.isCrossOrigin(url) && !this.isNavigationTrusted(url)) {
-        // Analyze URL for threats using SecurityValidator (with null safety)
-        let urlAnalysis = { riskScore: 0, threats: [], isPopUnder: false }; // Default safe values
-        
-        if (this.securityValidator && typeof this.securityValidator.analyzeThreats === 'function') {
-          try {
-            urlAnalysis = this.securityValidator.analyzeThreats(url);
-          } catch (analysisError) {
-            console.error('JustUI: Error analyzing URL threats:', analysisError);
-            // Use default safe values and continue execution
-          }
-        } else {
-          console.warn('JustUI: SecurityValidator not available for threat analysis');
-        }
+        // Analyze URL for threats
+        const urlAnalysis = this.analyzeURLThreats(url);
         
         // Combine pop-under analysis from injected script with URL analysis
         const combinedAnalysis = {
-          riskScore: (popUnderAnalysis?.score || 0) + (urlAnalysis?.riskScore || 0),
-          threats: [...(popUnderAnalysis?.threats || []), ...(urlAnalysis?.threats || [])],
-          isPopUnder: (popUnderAnalysis?.isPopUnder || false) || (urlAnalysis?.isPopUnder || false)
+          riskScore: (popUnderAnalysis?.score || 0) + urlAnalysis.riskScore,
+          threats: [...(popUnderAnalysis?.threats || []), ...urlAnalysis.threats],
+          isPopUnder: (popUnderAnalysis?.isPopUnder || false) || urlAnalysis.isPopUnder
         };
         
         // Track this modal to prevent duplicates
@@ -397,47 +344,408 @@ export class NavigationGuardian extends CleanableModule {
   }
 
   /**
-   * Show enhanced confirmation modal with threat details using ModalManager
+   * Safely create a DOM element with text content (prevents XSS)
+   * @param {string} tagName - Element tag name
+   * @param {object} options - Element configuration
+   * @returns {HTMLElement}
+   */
+  createSafeElement(tagName, options = {}) {
+    const element = document.createElement(tagName);
+
+    // Set text content safely (auto-escapes HTML)
+    if (options.textContent) {
+      element.textContent = options.textContent;
+    }
+
+    // Set styles via cssText (safe)
+    if (options.style) {
+      element.style.cssText = options.style;
+    }
+
+    // Set attributes
+    if (options.attributes) {
+      Object.entries(options.attributes).forEach(([key, value]) => {
+        element.setAttribute(key, value);
+      });
+    }
+
+    // Append children
+    if (options.children) {
+      options.children.forEach(child => {
+        if (child) element.appendChild(child);
+      });
+    }
+
+    return element;
+  }
+
+  /**
+   * Validate URL for security (protocol and unicode checks only)
+   * @param {string} url - The URL to validate
+   * @returns {string} Original URL if safe, or security warning if blocked
+   */
+  validateURLSecurity(url) {
+    // Handle null, undefined, or empty strings
+    if (!url || typeof url !== 'string') {
+      return 'Invalid URL';
+    }
+
+    try {
+      const urlObj = new URL(url);
+      
+      // Check for dangerous protocols
+      const allowedProtocols = ['http:', 'https:', 'ftp:', 'ftps:'];
+      if (!allowedProtocols.includes(urlObj.protocol)) {
+        return `Blocked: Unsafe protocol (${urlObj.protocol})`;
+      }
+
+      // Check for suspicious unicode characters (homograph attacks)
+      if (this.containsSuspiciousUnicode(urlObj.hostname)) {
+        return 'Blocked: Suspicious characters in domain';
+      }
+
+      // Return original URL if valid (CSS will handle display truncation)
+      return url;
+    } catch (error) {
+      // Invalid URL structure
+      return 'Blocked: Malformed URL';
+    }
+  }
+
+  /**
+   * Check for suspicious unicode characters that could indicate homograph attacks
+   * @param {string} hostname - The hostname to check
+   * @returns {boolean} True if suspicious characters detected
+   */
+  containsSuspiciousUnicode(hostname) {
+    // Check for mixed scripts that could be used in homograph attacks
+    const suspiciousPatterns = [
+      /[\u0400-\u04FF]/, // Cyrillic
+      /[\u0370-\u03FF]/, // Greek  
+      /[\u0590-\u05FF]/, // Hebrew
+      /[\u0600-\u06FF]/, // Arabic
+      /[\u4E00-\u9FFF]/, // CJK Unified Ideographs
+      /[\u3040-\u309F]/, // Hiragana
+      /[\u30A0-\u30FF]/  // Katakana
+    ];
+
+    return suspiciousPatterns.some(pattern => pattern.test(hostname));
+  }
+
+  /**
+   * Show enhanced confirmation modal with threat details
    * @param {string} targetURL - The target URL
    * @param {Function} callback - Callback function with user decision
    * @param {Object} threatDetails - Optional threat analysis details
    */
   showNavigationModal(targetURL, callback, threatDetails = null) {
-    // Validate callback function
-    if (!callback || typeof callback !== 'function') {
-      console.error('JustUI: Invalid callback provided to showNavigationModal');
+    // Prevent multiple modals for the same URL
+    const existingModal = document.getElementById('justui-navigation-modal');
+    if (existingModal) {
+      console.warn('JustUI: Navigation modal already exists, ignoring duplicate');
       return;
     }
 
-    // Check if ModalManager is available
-    if (!this.modalManager || typeof this.modalManager.showConfirmationModal !== 'function') {
-      console.error('JustUI: ModalManager not available, denying navigation by default');
-      try {
-        callback(false);
-      } catch (callbackError) {
-        console.error('JustUI: Error in callback during fallback:', callbackError);
-      }
-      return;
-    }
+    // Create modal overlay
+    const overlay = document.createElement('div');
+    overlay.id = 'justui-navigation-modal';
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: ${MAX_Z_INDEX};
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    `;
 
-    // Use ModalManager for modal display
-    this.modalManager.showConfirmationModal({
-      url: targetURL,
-      threatDetails: threatDetails
-    }).then(allowed => {
-      try {
-        callback(allowed);
-      } catch (callbackError) {
-        console.error('JustUI: Error in navigation modal callback:', callbackError);
+    // Create modal card
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      max-width: 480px;
+      width: 90%;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+      animation: justui-modal-appear 0.2s ease-out;
+    `;
+
+    // Add modal animation styles
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes justui-modal-appear {
+        from {
+          opacity: 0;
+          transform: scale(0.9) translateY(-10px);
+        }
+        to {
+          opacity: 1;
+          transform: scale(1) translateY(0);
+        }
       }
-    }).catch(error => {
-      console.error('JustUI: Modal error:', error);
-      try {
-        callback(false); // Default to deny for safety
-      } catch (callbackError) {
-        console.error('JustUI: Error in fallback callback:', callbackError);
+    `;
+    document.head.appendChild(style);
+
+    // Note: URL sanitization removed - textContent handles escaping automatically
+
+    // Determine threat level and message
+    const isPopUnder = threatDetails?.isPopUnder || false;
+    const riskScore = threatDetails?.riskScore || 0;
+    const threats = threatDetails?.threats || [];
+    
+    const threatLevel = riskScore >= 8 ? 'HIGH' : riskScore >= 4 ? 'MEDIUM' : 'LOW';
+    const threatColor = threatLevel === 'HIGH' ? '#dc2626' : threatLevel === 'MEDIUM' ? '#d97706' : '#059669';
+    
+    // Build threat details container (if threats exist)
+    let threatDetailsDiv = null;
+    if (threatDetails && threats.length > 0) {
+      const topThreats = threats.slice(0, 3);
+
+      // Create threat list items safely
+      const threatListItems = topThreats.map(threat =>
+        this.createSafeElement('li', {
+          textContent: `${threat.type} (Risk: ${threat.score})`,
+          style: 'margin-bottom: 2px;'
+        })
+      );
+
+      const threatList = this.createSafeElement('ul', {
+        style: 'margin: 4px 0 0 16px; padding: 0;',
+        children: threatListItems
+      });
+
+      const threatTitle = this.createSafeElement('strong', {
+        textContent: 'Detected threats:'
+      });
+
+      const threatContent = this.createSafeElement('div', {
+        style: 'font-size: 13px; color: #7f1d1d;',
+        children: [threatTitle, threatList]
+      });
+
+      const threatLevelSpan = this.createSafeElement('span', {
+        textContent: `⚠️ Threat Level: ${threatLevel}`,
+        style: `color: ${threatColor}; font-weight: 600; font-size: 14px;`
+      });
+
+      const threatHeader = this.createSafeElement('div', {
+        style: 'display: flex; align-items: center; margin-bottom: 8px;',
+        children: [threatLevelSpan]
+      });
+
+      // Add pop-under badge if applicable
+      if (isPopUnder) {
+        const popUnderBadge = this.createSafeElement('span', {
+          textContent: 'POP-UNDER',
+          style: 'margin-left: 8px; background: #dc2626; color: white; padding: 2px 6px; border-radius: 4px; font-size: 12px;'
+        });
+        threatHeader.appendChild(popUnderBadge);
       }
+
+      // Assemble complete threat details
+      threatDetailsDiv = this.createSafeElement('div', {
+        style: 'background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px; margin-bottom: 16px;',
+        children: [threatHeader, threatContent]
+      });
+    }
+    
+    // Build modal content safely using DOM manipulation
+    const modalHeader = this.createSafeElement('h3', {
+      textContent: '🛡️ Navigation Guardian',
+      style: 'margin: 0 0 12px 0; font-size: 18px; color: #1f2937;'
     });
+
+    const modalDescription = this.createSafeElement('p', {
+      textContent: isPopUnder
+        ? 'Blocked a pop-under advertisement attempting to open:'
+        : 'This page is trying to navigate to an external site:',
+      style: 'margin: 0; color: #6b7280; line-height: 1.5;'
+    });
+
+    const headerDiv = this.createSafeElement('div', {
+      style: 'margin-bottom: 16px;',
+      children: [modalHeader, modalDescription]
+    });
+
+    // URL display with security validation (textContent auto-escapes, CSS handles truncation)
+    const validatedURL = this.validateURLSecurity(targetURL);
+    const urlDiv = this.createSafeElement('div', {
+      textContent: validatedURL,
+      style: 'background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; margin-bottom: 20px; font-family: monospace; font-size: 14px; color: #374151; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;'
+    });
+
+    // Create buttons
+    const denyButton = this.createSafeElement('button', {
+      textContent: isPopUnder ? 'Block Ad' : 'Block',
+      style: 'background: #ef4444; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500;',
+      attributes: { id: 'justui-nav-deny' }
+    });
+
+    const allowButton = this.createSafeElement('button', {
+      textContent: 'Allow',
+      style: 'background: #10b981; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500;',
+      attributes: { id: 'justui-nav-allow' }
+    });
+
+    const buttonContainer = this.createSafeElement('div', {
+      style: 'display: flex; gap: 12px; justify-content: flex-end;',
+      children: [denyButton, allowButton]
+    });
+
+    // Assemble modal content
+    const modalContent = [headerDiv];
+    if (threatDetailsDiv) {
+      modalContent.push(threatDetailsDiv);
+    }
+    modalContent.push(urlDiv, buttonContainer);
+
+    // Clear modal and append safe content
+    modal.innerHTML = ''; // Clear existing content
+    modalContent.forEach(element => modal.appendChild(element));
+
+    overlay.appendChild(modal);
+
+    // Track if the modal has been responded to
+    let hasResponded = false;
+
+    // Handle responses
+    const cleanup = () => {
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      if (style.parentNode) style.parentNode.removeChild(style);
+    };
+
+    const handleAllow = () => {
+      if (hasResponded) return;
+      hasResponded = true;
+      
+      console.log('JustUI: Navigation Guardian - User allowed navigation to:', targetURL);
+      cleanup();
+      this.navigationStats.allowedCount++;
+      this.updateNavigationStats();
+      callback(true);
+    };
+
+    const handleDeny = () => {
+      if (hasResponded) return;
+      hasResponded = true;
+      
+      console.log('JustUI: Navigation Guardian - User blocked navigation to:', targetURL);
+      cleanup();
+      this.navigationStats.blockedCount++;
+      this.updateNavigationStats();
+      callback(false);
+    };
+
+    // Event listeners - buttons are already in DOM
+    denyButton.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      handleDeny();
+    }, { once: true });
+
+    allowButton.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      handleAllow();
+    }, { once: true });
+
+    // Keyboard support
+    const keydownHandler = (e) => {
+      if (hasResponded) return;
+      
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        handleDeny();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        handleAllow();
+      }
+    };
+    
+    overlay.addEventListener('keydown', keydownHandler);
+
+    // Add modal to page and focus
+    document.body.appendChild(overlay);
+    
+    // Focus deny button by default (safer choice)
+    setTimeout(() => {
+      if (!hasResponded && denyButton) {
+        denyButton.focus();
+      }
+    }, 100);
+    
+    console.log('JustUI: Navigation Guardian modal displayed for:', targetURL);
+  }
+
+  /**
+   * Analyze URLs for malicious patterns
+   * @param {string} url - URL to analyze
+   * @returns {Object} Analysis results with risk score and threats
+   */
+  analyzeURLThreats(url) {
+    const analysis = {
+      riskScore: 0,
+      threats: [],
+      isPopUnder: false
+    };
+    
+    try {
+      // URL-based threat patterns
+      const urlPatterns = [
+        { pattern: /adexchangeclear\.com/i, score: 8, threat: 'Known malicious ad network' },
+        { pattern: /\.php\?.*param_[45]/i, score: 6, threat: 'Ad tracking parameters' },
+        { pattern: /about:blank/i, score: 5, threat: 'Blank page (common pop-under technique)' },
+        { pattern: /doubleclick\.net/i, score: 4, threat: 'Ad network domain' },
+        { pattern: /googlesyndication\.com/i, score: 3, threat: 'Google ad network' },
+        { pattern: /\.tk$|\.ml$|\.ga$/i, score: 4, threat: 'Suspicious TLD' },
+        { pattern: /redirect|popup|popunder/i, score: 5, threat: 'Redirect/popup indicators' }
+      ];
+      
+      urlPatterns.forEach(({ pattern, score, threat }) => {
+        if (pattern.test(url)) {
+          analysis.riskScore += score;
+          analysis.threats.push({ type: threat, score });
+        }
+      });
+      
+      // Check for suspicious URL structure
+      try {
+        const urlObj = new URL(url);
+        
+        // Check for suspicious query parameters
+        const suspiciousParams = ['param_4', 'param_5', 'clickid', 'adclick', 'redirect'];
+        suspiciousParams.forEach(param => {
+          if (urlObj.searchParams.has(param)) {
+            analysis.riskScore += 3;
+            analysis.threats.push({ type: `Suspicious parameter: ${param}`, score: 3 });
+          }
+        });
+        
+        // Check for random-looking domains
+        if (/[a-z0-9]{10,20}\./i.test(urlObj.hostname)) {
+          analysis.riskScore += 2;
+          analysis.threats.push({ type: 'Random domain name pattern', score: 2 });
+        }
+        
+      } catch (urlError) {
+        analysis.riskScore += 3;
+        analysis.threats.push({ type: 'Malformed URL', score: 3 });
+      }
+      
+      analysis.isPopUnder = analysis.riskScore >= 6;
+      
+    } catch (error) {
+      console.warn('JustUI: Error analyzing URL threats:', error);
+    }
+    
+    return analysis;
   }
 
   /**
@@ -445,22 +753,8 @@ export class NavigationGuardian extends CleanableModule {
    */
   injectNavigationScript() {
     try {
-      // Validate Chrome extension context before using Chrome APIs
-      if (!isExtensionContextValid()) {
-        console.warn('JustUI: Chrome extension context invalid, skipping script injection');
-        return;
-      }
-
       const script = document.createElement('script');
-      
-      // Safe Chrome API call with context validation
-      try {
-        script.src = chrome.runtime.getURL('scripts/injected-script.js');
-      } catch (apiError) {
-        console.error('JustUI: Chrome API call failed:', apiError);
-        return;
-      }
-      
+      script.src = chrome.runtime.getURL('scripts/injected-script.js');
       script.onload = () => script.remove();
       (document.head || document.documentElement).appendChild(script);
       console.log('JustUI: Navigation Guardian injected script loaded');
@@ -472,14 +766,8 @@ export class NavigationGuardian extends CleanableModule {
   /**
    * Update navigation statistics in storage
    */
-  async updateNavigationStats() {
-    try {
-      // Use safe storage API with context validation and retry logic
-      await safeStorageSet({ navigationStats: this.navigationStats });
-    } catch (error) {
-      console.error('JustUI: Failed to update navigation statistics:', error);
-      // Non-critical failure, continue operation
-    }
+  updateNavigationStats() {
+    chrome.storage.local.set({ navigationStats: this.navigationStats });
   }
 
   /**
@@ -572,26 +860,6 @@ export class NavigationGuardian extends CleanableModule {
   }
 
   /**
-   * Get current navigation statistics (alias for backward compatibility)
-   * @returns {Object} Navigation statistics
-   */
-  getNavigationStats() {
-    return this.getStats();
-  }
-
-  /**
-   * Enable or disable NavigationGuardian protection
-   * @param {boolean} enabled - True to enable, false to disable
-   */
-  setEnabled(enabled) {
-    if (enabled) {
-      this.enable();
-    } else {
-      this.disable();
-    }
-  }
-
-  /**
    * Reset navigation statistics
    */
   resetStats() {
@@ -623,13 +891,6 @@ export class NavigationGuardian extends CleanableModule {
       // Stop modal cache cleanup timer
       this.stopModalCacheCleanup();
       
-      // Cleanup extracted modules
-      if (this.modalManager && typeof this.modalManager.cleanup === 'function') {
-        this.modalManager.cleanup();
-      }
-      
-      // SecurityValidator is stateless, no cleanup needed
-      
       // Remove all tracked event listeners
       let removedListeners = 0;
       this.eventListeners.forEach(({ element, type, handler, options }) => {
@@ -651,6 +912,12 @@ export class NavigationGuardian extends CleanableModule {
       const pendingModalCount = this.pendingModalKeys.size;
       this.pendingModalKeys.clear();
       this.modalCacheStats.currentPending = 0;
+      
+      // Remove any existing modal
+      const existingModal = document.getElementById('justui-navigation-modal');
+      if (existingModal) {
+        existingModal.remove();
+      }
       
       // Clear cache
       this.whitelistCache = null;
@@ -707,7 +974,6 @@ export class NavigationGuardian extends CleanableModule {
       eventListeners: this.eventListeners.length * 100, // rough estimate
       pendingModals: this.pendingModalKeys.size * 200,
       whitelist: this.whitelist.length * 50,
-      modules: 1000, // SecurityValidator + ModalManager overhead
       stats: 500 // static overhead
     };
     
