@@ -6,6 +6,8 @@ import CurrentDomain from "./components/app/current-domain";
 import DefaultSections from "./components/app/default-sections";
 import NavigationStats from "./components/app/navigation-stats";
 import RuleStates from "./components/app/rule-stats";
+import Gear from "./components/icons/gear";
+import Button from "./components/ui/button";
 import { H1 } from "./components/ui/typography";
 
 // Action types
@@ -196,6 +198,10 @@ export default function App() {
     });
   };
 
+  const handleOpenSettings = () => {
+    chrome.tabs.create({ url: chrome.runtime.getURL("settings.html") });
+  };
+
   useEffect(() => {
     const initializeExtension = async () => {
       try {
@@ -355,19 +361,13 @@ export default function App() {
           onResetStats={handleResetStats}
         />
 
-        {/* Settings Link */}
-        <div className="pt-4 border-t border-gray-600">
-          <button
-            onClick={() =>
-              chrome.tabs.create({
-                url: chrome.runtime.getURL("settings.html"),
-              })
-            }
-            className="w-full px-3 py-2 text-sm bg-gray-600 hover:bg-gray-700 text-white rounded-md transition-colors flex items-center justify-center gap-2"
-          >
-            ⚙️ Advanced Settings
-          </button>
-        </div>
+        <Button
+          variant="primary"
+          onClick={handleOpenSettings}
+          className="w-full flex gap-x-1.5 font-days-one"
+        >
+          <Gear /> Advanced Settings
+        </Button>
       </main>
     </div>
   );
