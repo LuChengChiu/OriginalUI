@@ -1,11 +1,11 @@
-import CheckboxCard from "./checkbox-card";
 import MdiRadioTower from "../icons/MdiRadioTower";
-import MdiShieldLinkVariant from "../icons/MdiShieldLinkVariant";
+import ShieldLink from "../icons/shield-link";
 import { H3 } from "../ui/typography";
+import CheckboxCard from "./checkbox-card";
 
 const navigationLabel = (
   <>
-    Navigation <MdiShieldLinkVariant />
+    Navigation <ShieldLink />
   </>
 );
 
