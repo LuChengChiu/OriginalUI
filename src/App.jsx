@@ -1,6 +1,5 @@
 import { useEffect, useReducer } from "react";
 import Loading from "./components/ui/loading";
-import Switch from "./components/ui/switch";
 
 import CurrentDomain from "./components/app/current-domain";
 import DefaultSections from "./components/app/default-sections";
@@ -8,6 +7,7 @@ import NavigationStats from "./components/app/navigation-stats";
 import RuleStates from "./components/app/rule-stats";
 import Gear from "./components/icons/gear";
 import Button from "./components/ui/button";
+import Toggle from "./components/ui/toggle";
 import { H1 } from "./components/ui/typography";
 
 // Action types
@@ -329,7 +329,6 @@ export default function App() {
       </header>
 
       <main className="p-4 pt-0 space-y-4">
-        {/* Extension Status */}
         <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
           <div>
             <h2 className="text-lg font-semibold text-gray-800">
@@ -339,7 +338,8 @@ export default function App() {
               {state.isActive ? "Active" : "Inactive"}
             </p>
           </div>
-          <Switch checked={state.isActive} onChange={handleToggle} />
+
+          <Toggle checked={state.isActive} onChange={handleToggle} />
         </div>
 
         <CurrentDomain
