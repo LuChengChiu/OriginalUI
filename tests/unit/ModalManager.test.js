@@ -459,6 +459,171 @@ describe('ModalManager', () => {
     });
   });
 
+  describe('React Integration', () => {
+    beforeEach(() => {
+      // Mock dynamic import for React
+      global.import = jest.fn();
+      
+      // Mock React createRoot
+      const mockCreateRoot = jest.fn(() => ({
+        render: jest.fn(),
+        unmount: jest.fn()
+      }));
+      
+      global.import.mockResolvedValue({
+        showExternalLinkModal: jest.fn().mockResolvedValue(true)
+      });
+    });
+
+    test('should use React modal when available', async () => {
+      const mockShowExternalLinkModal = jest.fn().mockResolvedValue(true);
+      global.import.mockResolvedValue({
+        showExternalLinkModal: mockShowExternalLinkModal
+      });
+
+      modalManager.setStatisticsCallback(mockStatisticsCallback);
+      modalManager.setURLValidator(mockURLValidator);
+
+      const result = await modalManager.showConfirmationModal({
+        url: 'https://example.com',
+        threatDetails: { riskScore: 5 }
+      });
+
+      expect(result).toBe(true);
+      expect(mockStatisticsCallback).toHaveBeenCalledWith(true);
+    });
+
+    test('should fallback to legacy modal when React import fails', async () => {
+      global.import.mockRejectedValue(new Error('React import failed'));
+      
+      // Mock legacy modal behavior
+      modalManager.showLegacyModal = jest.fn().mockResolvedValue(false);
+
+      const result = await modalManager.showConfirmationModal({
+        url: 'https://example.com'
+      });
+
+      expect(modalManager.showLegacyModal).toHaveBeenCalledWith({
+        url: 'https://example.com',
+        threatDetails: null
+      });
+      expect(result).toBe(false);
+    });
+
+    test('should handle React modal errors gracefully', async () => {
+      const mockShowExternalLinkModal = jest.fn().mockRejectedValue(new Error('Modal error'));
+      global.import.mockResolvedValue({
+        showExternalLinkModal: mockShowExternalLinkModal
+      });
+
+      modalManager.showLegacyModal = jest.fn().mockResolvedValue(false);
+
+      const result = await modalManager.showConfirmationModal({
+        url: 'https://example.com'
+      });
+
+      expect(modalManager.showLegacyModal).toHaveBeenCalled();
+      expect(result).toBe(false);
+    });
+
+    test('should pass correct config to React modal', async () => {
+      const mockShowExternalLinkModal = jest.fn().mockResolvedValue(true);
+      global.import.mockResolvedValue({
+        showExternalLinkModal: mockShowExternalLinkModal
+      });
+
+      modalManager.setURLValidator((url) => `validated-${url}`);
+
+      const threatDetails = {
+        riskScore: 6,
+        threats: [{ type: 'Test threat', score: 6 }],
+        isPopUnder: true
+      };
+
+      await modalManager.showConfirmationModal({
+        url: 'https://example.com',
+        threatDetails
+      });
+
+      expect(mockShowExternalLinkModal).toHaveBeenCalledWith({
+        url: 'validated-https://example.com',
+        threatDetails
+      });
+    });
+
+    test('should manage activeModal flag correctly with React', async () => {
+      const mockShowExternalLinkModal = jest.fn().mockResolvedValue(true);
+      global.import.mockResolvedValue({
+        showExternalLinkModal: mockShowExternalLinkModal
+      });
+
+      expect(modalManager.activeModal).toBeNull();
+
+      const modalPromise = modalManager.showConfirmationModal({
+        url: 'https://example.com'
+      });
+
+      // activeModal should be set during modal display
+      expect(modalManager.activeModal).toBe(true);
+
+      await modalPromise;
+
+      // activeModal should be cleared after modal closes
+      expect(modalManager.activeModal).toBeNull();
+    });
+
+    test('should handle statistics callback errors in React modal', async () => {
+      const mockShowExternalLinkModal = jest.fn().mockResolvedValue(true);
+      global.import.mockResolvedValue({
+        showExternalLinkModal: mockShowExternalLinkModal
+      });
+
+      const errorCallback = jest.fn().mockImplementation(() => {
+        throw new Error('Statistics error');
+      });
+      modalManager.setStatisticsCallback(errorCallback);
+
+      // Should not throw error
+      await expect(modalManager.showConfirmationModal({
+        url: 'https://example.com'
+      })).resolves.toBe(true);
+
+      expect(errorCallback).toHaveBeenCalledWith(true);
+    });
+
+    test('should clear activeModal flag on React import error', async () => {
+      global.import.mockRejectedValue(new Error('Import failed'));
+      modalManager.showLegacyModal = jest.fn().mockResolvedValue(false);
+
+      expect(modalManager.activeModal).toBeNull();
+
+      await modalManager.showConfirmationModal({
+        url: 'https://example.com'
+      });
+
+      expect(modalManager.activeModal).toBeNull();
+    });
+
+    test('should preserve URL validation in React modal path', async () => {
+      const mockShowExternalLinkModal = jest.fn().mockResolvedValue(true);
+      global.import.mockResolvedValue({
+        showExternalLinkModal: mockShowExternalLinkModal
+      });
+
+      mockURLValidator.mockReturnValue('Safe URL');
+
+      await modalManager.showConfirmationModal({
+        url: 'https://dangerous-site.com'
+      });
+
+      expect(mockURLValidator).toHaveBeenCalledWith('https://dangerous-site.com');
+      expect(mockShowExternalLinkModal).toHaveBeenCalledWith({
+        url: 'Safe URL',
+        threatDetails: null
+      });
+    });
+  });
+
   describe('Error Boundary', () => {
     test('should handle createElement errors', () => {
       mockDOM.createElement.mockImplementation(() => {
