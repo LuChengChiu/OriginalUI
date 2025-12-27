@@ -114,7 +114,7 @@ export default function ExternalLinkModal({
         maxWidth="max-w-lg"
         showCloseButton={false}
         onKeyDown={handleKeyDown}
-        className="shadow-[1px_2px_3px_1px_#9647eb]"
+        className="shadow-[1px_2px_3px_1px_var(--color-accent)]"
       >
         <Dialog.Header className="flex flex-col gap-y-1">
           <Dialog.Title className="flex gap-x-1 items-center">

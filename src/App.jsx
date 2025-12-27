@@ -5,9 +5,9 @@ import CurrentDomain from "./components/app/current-domain";
 import DefaultSections from "./components/app/default-sections";
 import NavigationStats from "./components/app/navigation-stats";
 import RuleStates from "./components/app/rule-stats";
+import Status from "./components/app/status";
 import Gear from "./components/icons/gear";
 import Button from "./components/ui/button";
-import Toggle from "./components/ui/toggle";
 import { H1 } from "./components/ui/typography";
 
 // Action types
@@ -321,26 +321,15 @@ export default function App() {
   }
 
   return (
-    <div className="w-90 rounded-lg h-auto p-0 bg-[#F9F8FB]">
+    <div className="w-96 rounded-lg h-auto p-0 bg-[#F9F8FB]">
       <header className="flex w-full items-center justify-end pr-2">
         <H1 color="accent" align="center" className="text-[26px]">
           JustUI
         </H1>
       </header>
 
-      <main className="p-4 pt-0 space-y-4">
-        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-800">
-              Extension Status
-            </h2>
-            <p className="text-sm text-gray-600">
-              {state.isActive ? "Active" : "Inactive"}
-            </p>
-          </div>
-
-          <Toggle checked={state.isActive} onChange={handleToggle} />
-        </div>
+      <main className="p-4 pt-0 space-y-2">
+        <Status isActive={state.isActive} onChange={handleToggle} />
 
         <CurrentDomain
           domain={currentDomain}

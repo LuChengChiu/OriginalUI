@@ -10,7 +10,7 @@ export default function NavigationGuardian({
     <div className="space-y-3">
       <H1 color="primary">
         Navigation Guardian{" "}
-        <span className="text-[#913ced] text-[15px]">(beta)</span>
+        <span className="text-primary text-[15px]">(beta)</span>
       </H1>
 
       <CheckboxCard

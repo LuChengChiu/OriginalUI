@@ -21,8 +21,8 @@ const Checkbox = ({
           type="checkbox"
           {...inputProps}
         />
-        <span className="relative w-6 h-6 flex justify-center items-center bg-[#fff] border-2 border-[#913ced] rounded-md shadow-md transition-all duration-500 peer-checked:border-[#9647eb] peer-checked:bg-[#9647eb] peer-hover:scale-105">
-          <span className="absolute inset-0 bg-gradient-to-br from-white/30 to-[#913ced]/10 opacity-0 peer-checked:opacity-100 rounded-md transition-all duration-500 peer-checked:animate-pulse" />
+        <span className="relative w-6 h-6 flex justify-center items-center bg-[#fff] border-2 border-primary rounded-md shadow-md transition-all duration-500 peer-checked:border-accent peer-checked:bg-accent peer-hover:scale-105">
+          <span className="absolute inset-0 bg-gradient-to-br from-white/30 to-primary/10 opacity-0 peer-checked:opacity-100 rounded-md transition-all duration-500 peer-checked:animate-pulse" />
           <svg
             fill="currentColor"
             viewBox="0 0 20 20"

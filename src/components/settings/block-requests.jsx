@@ -26,7 +26,7 @@ export default function BlockRequestsManager({
           </Text>
           <a
             href={DEFAULT_BLOCK_URL}
-            className="text-[10px] text-[#9647eb] cursor-pointer underline italic"
+            className="text-[10px] text-accent cursor-pointer underline italic"
           >
             Github JustUI Block Domains
           </a>

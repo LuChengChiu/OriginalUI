@@ -232,7 +232,7 @@ const TagsInputRoot = ({
       outline: `border-2 ${
         validationError
           ? "border-red-500 focus-within:border-red-600 focus-within:shadow-[0_0_0_1px_rgba(239,68,68,0.5)]"
-          : "border-gray-300 focus-within:border-[#913ced] focus-within:shadow-[0_0_0_1px_rgba(59,130,246,0.5)]"
+          : "border-gray-300 focus-within:border-primary focus-within:shadow-[0_0_0_1px_rgba(59,130,246,0.5)]"
       } bg-white`,
       subtle: `border ${
         validationError
@@ -241,7 +241,7 @@ const TagsInputRoot = ({
       } focus-within:bg-white focus-within:border-gray-300`,
       flushed: `border-0 border-b-2 ${
         validationError ? "border-red-500" : "border-gray-300"
-      } bg-transparent rounded-none focus-within:border-[#913ced]`,
+      } bg-transparent rounded-none focus-within:border-primary`,
     }),
     [validationError]
   );

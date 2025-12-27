@@ -19,7 +19,7 @@ export default function Toggle({
         disabled={disabled}
       />
 
-      <div className="absolute top-1/2 -translate-y-3/5 translate-x-0.5 h-6 w-7 bg-red-600/30 rounded-sm transition-all duration-300 ease-in-out peer-checked:translate-x-6 peer-checked:bg-[#9647eb]"></div>
+      <div className="absolute top-1/2 -translate-y-3/5 translate-x-1 h-6 w-7 bg-[#e4e4e4] rounded-sm transition-all duration-300 ease-in-out peer-checked:translate-x-6 peer-checked:bg-accent"></div>
     </label>
   );
 }

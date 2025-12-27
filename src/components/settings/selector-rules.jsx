@@ -20,7 +20,7 @@ export default function DefaultSelectorRuleManager({ checked, onChange }) {
           </Text>
           <a
             href={URL}
-            className="text-[10px] text-[#9647eb] cursor-pointer underline italic"
+            className="text-[10px] text-accent cursor-pointer underline italic"
           >
             Github JustUI Selector Rules
           </a>

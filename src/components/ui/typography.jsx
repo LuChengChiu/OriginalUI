@@ -15,7 +15,7 @@ const TYPOGRAPHY_STYLES = {
   },
   color: {
     primary: "text-gray-900",
-    secondary: "text-gray-600",
+    secondary: "text-[#141117]",
     muted: "text-gray-400",
     accent: "text-purple-600",
   },

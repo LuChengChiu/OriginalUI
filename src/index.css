@@ -6,23 +6,46 @@
 @theme {
   --font-days-one: "Days One", cursive;
   --font-barlow: "Barlow", sans-serif;
-  --animate-terminal-typing: type-and-delete 4s steps(10) infinite, blink-cursor 0.5s step-end infinite alternate;
-  
+
+  --color-text: #141117;
+  --color-primary: #913ced;
+  --color-secondary: #bb92e7;
+  --color-accent: #9647eb;
+
+  --animate-terminal-typing: type-and-delete 4s steps(10) infinite,
+    blink-cursor 0.5s step-end infinite alternate;
+
   @keyframes blink-cursor {
     50% {
       border-right-color: transparent;
     }
   }
-  
+
   @keyframes type-and-delete {
-    0%, 10% {
+    0%,
+    10% {
       width: 0;
     }
-    45%, 55% {
+    45%,
+    55% {
       width: 5.8em;
     }
-    90%, 100% {
+    90%,
+    100% {
       width: 0;
     }
+  }
+}
+
+/* Reusable Component Classes */
+@layer components {
+  /* Card variants */
+  .card-purple {
+    @apply px-4 py-3 bg-secondary/30 rounded-lg;
+  }
+
+  /* Text truncation with ellipsis */
+  .text-truncate {
+    @apply overflow-hidden whitespace-nowrap text-ellipsis block;
   }
 }

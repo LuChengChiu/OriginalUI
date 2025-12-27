@@ -6,7 +6,7 @@ const renderRuleCount = (label, count) => {
     <div className="flex justify-between items-center">
       <Text>{label}</Text>
 
-      <Text className="text-sm font-semibold text-[#913ced]">{count}</Text>
+      <Text className="text-sm text-primary">{count}</Text>
     </div>
   );
 };
@@ -18,8 +18,8 @@ export default function RuleStates({ domain, stats, onResetStats }) {
   const customCount = stats?.customRulesRemoved || 0;
 
   return (
-    <div className="py-2 bg-gray-50 rounded-lg">
-      <div className="flex justify-between items-center mb-3">
+    <div className="card-purple">
+      <div className="flex justify-between items-center mb-2">
         <H3>Removal Stats</H3>
 
         {stats && onResetStats && (
@@ -33,14 +33,14 @@ export default function RuleStates({ domain, stats, onResetStats }) {
         )}
       </div>
 
-      <div className="space-y-2 pr-2">
+      <div className="space-y-2 pr-1">
         {renderRuleCount("Default Rules:", `${defaultCount} elements`)}
         {customCount > 0 &&
           renderRuleCount("Custom Rules:", `${customCount} elements`)}
 
-        <div className="flex mt-2 pt-2 border-t border-gray-200 justify-between items-center">
+        <div className="flex mt-2 pt-2 border-t border-[#141117]/50 justify-between items-center">
           <H4>Total:</H4>
-          <Text className="font-bold">
+          <Text className="!font-bold">
             {defaultCount + customCount} elements
           </Text>
         </div>

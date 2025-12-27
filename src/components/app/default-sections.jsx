@@ -1,4 +1,4 @@
-import RadioTower from "../icons/RadioTower";
+import RadioTower from "../icons/radio-tower";
 import ShieldLink from "../icons/shield-link";
 import { H3 } from "../ui/typography";
 import CheckboxCard from "./checkbox-card";
@@ -17,10 +17,10 @@ const patternLabel = (
 
 export default function DefaultSections({ state, handleProtectionToggle }) {
   return (
-    <div className="flex flex-col gap-y-1">
+    <div className="flex flex-col gap-y-1 card-purple">
       <H3>Default Sections</H3>
 
-      <div className="grid grid-cols-2 gap-2 mb-4">
+      <div className="grid grid-cols-2 gap-2">
         <CheckboxCard
           id="defaultrules"
           label="Selector Rules"

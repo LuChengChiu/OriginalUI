@@ -10,12 +10,12 @@ export default function CheckboxCard({
 }) {
   return (
     <label
-      className={`relative flex justify-center items-center cursor-pointer select-none w-40 h-9 border border-[#BB92E7] rounded-sm 
-        font-days-one text-[13px] gap-x-2
+      className={`relative flex justify-center items-center cursor-pointer select-none w-[9.6rem] h-9 border border-secondary rounded-sm
+        font-days-one text-[12.5px] gap-x-2
         ${
           disabled ? "opacity-50 cursor-not-allowed" : "hover:scale-105"
         } transition-all duration-300 rounded-lg ${
-        checked ? "bg-[#913ced]" : "bg-white"
+        checked ? "bg-primary" : "bg-white"
       } ${className}`}
       htmlFor={id}
     >
