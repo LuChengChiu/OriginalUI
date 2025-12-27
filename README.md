@@ -384,7 +384,7 @@ Contributions are welcome! Please follow these guidelines:
 
 ## License
 
-ISC © LuChengChiu
+GNU General Public License v3.0 © LuChengChiu
 
 See [LICENSE](LICENSE) for details.
 
