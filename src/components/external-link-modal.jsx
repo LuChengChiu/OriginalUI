@@ -58,13 +58,8 @@ const ThreatDisplay = ({ threatDetails, threatLevel, isPopUnder }) => {
  * URLDisplay Component - Safely displays the target URL
  */
 const URLDisplay = ({ url }) => (
-  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-5">
-    <div
-      className="font-mono text-sm text-gray-700 break-all whitespace-pre-wrap"
-      title={url}
-    >
-      {url}
-    </div>
+  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-2">
+    <Text className="break-all whitespace-pre-wrap italic">{url}</Text>
   </div>
 );
 

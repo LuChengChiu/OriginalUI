@@ -1,10 +1,10 @@
-import MdiMinus from "../../icons/MdiMinus";
-import MdiPlus from "../../icons/MdiPlus";
+import Minus from "../../icons/Minus";
+import Plus from "../../icons/Plus";
 import IconResetSetting from "../../icons/reset-settings";
 
 const iconVariants = {
-  plus: <MdiPlus className="w-4 h-4 text-white" />,
-  minus: <MdiMinus className="w-4 h-4 text-white" />,
+  plus: <Plus className="w-4 h-4 text-white" />,
+  minus: <Minus className="w-4 h-4 text-white" />,
   "reset-setting": <IconResetSetting className="w-4 h-4 text-white" />,
 };
 

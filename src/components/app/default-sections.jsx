@@ -1,4 +1,4 @@
-import MdiRadioTower from "../icons/MdiRadioTower";
+import RadioTower from "../icons/RadioTower";
 import ShieldLink from "../icons/shield-link";
 import { H3 } from "../ui/typography";
 import CheckboxCard from "./checkbox-card";
@@ -11,7 +11,7 @@ const navigationLabel = (
 
 const patternLabel = (
   <>
-    Pattern <MdiRadioTower />
+    Pattern <RadioTower />
   </>
 );
 
