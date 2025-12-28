@@ -5,6 +5,7 @@
 
 import { defineConfig } from 'vitest/config'
 import { resolve } from 'path'
+import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   build: {
@@ -69,9 +70,9 @@ export default defineConfig({
     
     // File patterns
     include: [
-      'test/**/*.{test,spec}.{js,ts}',
-      'tests/**/*.{test,spec}.{js,ts}',
-      'src/**/*.{test,spec}.{js,ts}'
+      'test/**/*.{test,spec}.{js,jsx,ts,tsx}',
+      'tests/**/*.{test,spec}.{js,jsx,ts,tsx}',
+      'src/**/*.{test,spec}.{js,jsx,ts,tsx}'
     ],
     exclude: [
       'node_modules/**',
@@ -120,6 +121,7 @@ export default defineConfig({
   
   // Use custom transform to avoid unicode parsing issues
   plugins: [
+    react(),
     {
       name: 'unicode-bypass',
       transform(code, id) {
@@ -129,8 +131,5 @@ export default defineConfig({
         }
       }
     }
-  ],
-  
-  // Esbuild configuration - disable for unicode files
-  esbuild: false
+  ]
 })

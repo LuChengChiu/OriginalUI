@@ -1,4 +1,4 @@
-import CheckboxCard from "../ui/checkbox/card";
+import SettingsCheckbox from "../ui/checkbox/settings-checkbox";
 import { H1, Text } from "../ui/typography";
 
 export default function NavigationGuardian({
@@ -13,7 +13,7 @@ export default function NavigationGuardian({
         <span className="text-primary text-[15px]">(beta)</span>
       </H1>
 
-      <CheckboxCard
+      <SettingsCheckbox
         checked={enabled}
         onChange={onChange}
         color="purple"
@@ -39,7 +39,7 @@ export default function NavigationGuardian({
             </div>
           </div>
         )}
-      </CheckboxCard>
+      </SettingsCheckbox>
     </div>
   );
 }

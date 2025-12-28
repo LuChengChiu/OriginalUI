@@ -1,4 +1,4 @@
-import CheckboxCard from "../ui/checkbox/card";
+import SettingsCheckbox from "../ui/checkbox/settings-checkbox";
 import TagsInput from "../ui/tags-input";
 import { H1, H3, Text } from "../ui/typography";
 
@@ -15,7 +15,7 @@ export default function BlockRequestsManager({
     <div className="space-y-3">
       <H1 color="primary">Network Block Request</H1>
 
-      <CheckboxCard
+      <SettingsCheckbox
         checked={checked}
         onChange={onToggleCheck}
         label="Apply Default Network Block"
@@ -31,7 +31,7 @@ export default function BlockRequestsManager({
             Github OriginalUI Block Domains
           </a>
         </div>
-      </CheckboxCard>
+      </SettingsCheckbox>
 
       <div className="flex flex-col space-y-1.5">
         <H3 color="primary" className="mb-0">

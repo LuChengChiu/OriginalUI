@@ -1,7 +1,7 @@
 import RadioTower from "../icons/radio-tower";
 import ShieldLink from "../icons/shield-link";
 import { H3 } from "../ui/typography";
-import CheckboxCard from "./checkbox-card";
+import PopupToggle from "../ui/checkbox/popup-toggle";
 
 const navigationLabel = (
   <>
@@ -21,7 +21,7 @@ export default function DefaultSections({ state, handleProtectionToggle }) {
       <H3>Default Sections</H3>
 
       <div className="grid grid-cols-2 gap-2">
-        <CheckboxCard
+        <PopupToggle
           id="defaultrules"
           label="Selector Rules"
           checked={state.protectionSystems.defaultRules}
@@ -29,7 +29,7 @@ export default function DefaultSections({ state, handleProtectionToggle }) {
             handleProtectionToggle("defaultRules", newState)
           }
         />
-        <CheckboxCard
+        <PopupToggle
           id="patternrules"
           checked={state.protectionSystems.patternRules}
           label={patternLabel}
@@ -37,7 +37,7 @@ export default function DefaultSections({ state, handleProtectionToggle }) {
             handleProtectionToggle("patternRules", newState)
           }
         />
-        <CheckboxCard
+        <PopupToggle
           id="requestblocking"
           checked={state.protectionSystems.requestBlocking}
           label="Block Requests"
@@ -45,7 +45,7 @@ export default function DefaultSections({ state, handleProtectionToggle }) {
             handleProtectionToggle("requestBlocking", newState)
           }
         />
-        <CheckboxCard
+        <PopupToggle
           id="navigationguard"
           checked={state.protectionSystems.navigationGuard}
           label={navigationLabel}

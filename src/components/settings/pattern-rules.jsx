@@ -1,4 +1,4 @@
-import CheckboxCard from "../ui/checkbox/card";
+import SettingsCheckbox from "../ui/checkbox/settings-checkbox";
 import { H1, Text } from "../ui/typography";
 
 export default function PatternRules({ enabled, onToggleCheck }) {
@@ -6,7 +6,7 @@ export default function PatternRules({ enabled, onToggleCheck }) {
     <div className="space-y-4">
       <H1 color="primary">Pattern Rules</H1>
 
-      <CheckboxCard
+      <SettingsCheckbox
         checked={enabled}
         onChange={onToggleCheck}
         label="Apply Pattern Rules"
@@ -17,7 +17,7 @@ export default function PatternRules({ enabled, onToggleCheck }) {
         <Text variant="caption" color="muted">
           Scored Detection System: overlays, scams, click hijacking, etc
         </Text>
-      </CheckboxCard>
+      </SettingsCheckbox>
     </div>
   );
 }

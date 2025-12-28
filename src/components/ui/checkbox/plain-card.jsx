@@ -1,23 +1,20 @@
-import Checkbox from ".";
-
-export default function CheckboxCard({
-  checked = false,
-  disabled = false,
-  onChange,
+export default function PlainCard({
+  id,
   label,
-  description,
+  checked,
+  disabled,
+  className,
+  onChange,
   children,
-  ...props
 }) {
-  const handleChange = (e) => {
-    if (!disabled && onChange) {
-      onChange(e.target.checked, e);
-    }
-  };
-
   return (
-    <div className="flex items-start gap-2" {...props}>
-      <Checkbox checked={checked} onChange={handleChange} disabled={disabled} />
+    <div className={`flex items-start gap-2 ${className || ""}`} {...props}>
+      <Checkbox
+        checked={checked}
+        onChange={handleChange}
+        disabled={disabled}
+        inputProps={{ id }}
+      />
 
       <div className="flex flex-col pt-0 items-start">
         {label && (

@@ -1,4 +1,4 @@
-const Checkbox = ({
+export default function Checkbox({
   checked = false,
   onChange,
   disabled = false,
@@ -9,7 +9,7 @@ const Checkbox = ({
   className = "",
   children,
   ...inputProps
-}) => {
+}) {
   return (
     <div className="flex items-center space-x-3">
       <label className="group flex items-center cursor-pointer">
@@ -39,6 +39,4 @@ const Checkbox = ({
       </label>
     </div>
   );
-};
-
-export default Checkbox;
+}

@@ -1,4 +1,4 @@
-import CheckboxCard from "../ui/checkbox/card";
+import SettingsCheckbox from "../ui/checkbox/settings-checkbox";
 import { H1, Text } from "../ui/typography";
 
 const URL =
@@ -9,7 +9,7 @@ export default function DefaultSelectorRuleManager({ checked, onChange }) {
     <div className="space-y-4">
       <H1 color="primary">Selector Rules</H1>
 
-      <CheckboxCard
+      <SettingsCheckbox
         checked={checked}
         onChange={onChange}
         label="Apply Default Rules"
@@ -25,7 +25,7 @@ export default function DefaultSelectorRuleManager({ checked, onChange }) {
             Github OriginalUI Selector Rules
           </a>
         </div>
-      </CheckboxCard>
+      </SettingsCheckbox>
     </div>
   );
 }

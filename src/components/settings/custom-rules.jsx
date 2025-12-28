@@ -3,7 +3,7 @@ import TagsInput from "../ui/tags-input";
 import Button from "../ui/button";
 import { H3, Text } from "../ui/typography";
 import RuleEditModal from "./rule-edit-modal";
-import CheckboxCard from "../ui/checkbox/card";
+import SettingsCheckbox from "../ui/checkbox/settings-checkbox";
 
 const emptyRule = (
   <div className="text-center p-6  bg-gray-100 rounded-lg">
@@ -99,7 +99,7 @@ export default function CustomRulesManager({
             </TagsInput.Control>
           </TagsInput.Root>
 
-          <CheckboxCard
+          <SettingsCheckbox
             checked={enabled}
             onChange={onToggleEnable}
             label="Apply Your Selector Rules"

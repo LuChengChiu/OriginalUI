@@ -1,7 +1,7 @@
 import { createRoot } from "react-dom/client";
-import { useState, useEffect } from "react";
 
 import { H1 } from "./components/ui/typography";
+import { useBulkChromeStorage } from "./hooks/useBulkChromeStorage";
 
 import WhitelistManager from "./components/settings/whitelist";
 import DefaultSelectorRuleManager from "./components/settings/selector-rules";
@@ -11,125 +11,39 @@ import NavigationGuardian from "./components/settings/navigation-guardian";
 import PatternRules from "./components/settings/pattern-rules";
 import Footer from "./components/settings/footer";
 import Loading from "./components/settings/loading";
+import ErrorDisplay from "./components/settings/error-display";
 
 function SettingsBeta() {
-  const [defaultRulesEnabled, setDefaultRulesEnabled] = useState(true);
-  const [customRulesEnabled, setCustomRulesEnabled] = useState(true);
-  const [patternRulesEnabled, setPatternRulesEnabled] = useState(true);
-  const [navigationGuardEnabled, setNavigationGuardEnabled] = useState(true);
-  const [defaultBlockRequestEnabled, setDefaultBlockRequestEnabled] =
-    useState(true);
-
-  // Data states
-  const [whitelist, setWhitelist] = useState([]);
-  const [customRules, setCustomRules] = useState([]);
-  const [networkBlockPatterns, setNetworkBlockPatterns] = useState([]);
-  const [navigationStats, setNavigationStats] = useState({
-    blockedCount: 0,
-    allowedCount: 0,
+  const { values, updateValue, loading, error } = useBulkChromeStorage({
+    defaultRulesEnabled: true,
+    customRulesEnabled: true,
+    patternRulesEnabled: true,
+    navigationGuardEnabled: true,
+    defaultBlockRequestEnabled: true,
+    whitelist: [],
+    customRules: [],
+    networkBlockPatterns: [],
+    navigationStats: { blockedCount: 0, allowedCount: 0 },
   });
-
-  const [loading, setLoading] = useState(true);
-
-  // Load settings from Chrome storage
-  useEffect(() => {
-    chrome.storage.local.get(
-      [
-        "defaultRulesEnabled",
-        "customRulesEnabled",
-        "patternRulesEnabled",
-        "navigationGuardEnabled",
-        "defaultBlockRequestEnabled",
-        "whitelist",
-        "customRules",
-        "networkBlockPatterns",
-        "navigationStats",
-      ],
-      (result) => {
-        setDefaultRulesEnabled(result.defaultRulesEnabled !== false);
-        setCustomRulesEnabled(result.customRulesEnabled !== false);
-        setPatternRulesEnabled(result.patternRulesEnabled !== false);
-        setNavigationGuardEnabled(result.navigationGuardEnabled !== false);
-        setDefaultBlockRequestEnabled(
-          result.defaultBlockRequestEnabled !== false
-        );
-        setWhitelist(result.whitelist || []);
-        setCustomRules(result.customRules || []);
-        setNetworkBlockPatterns(result.networkBlockPatterns || []);
-        setNavigationStats(
-          result.navigationStats || { blockedCount: 0, allowedCount: 0 }
-        );
-        setLoading(false);
-      }
-    );
-  }, []);
-
-  // Update settings in Chrome storage
-  const updateSetting = (key, value) => {
-    chrome.storage.local.set({ [key]: value });
-  };
-
-  // Handle whitelist changes
-  const handleWhitelistChange = (domains) => {
-    setWhitelist(domains);
-    updateSetting("whitelist", domains);
-  };
-
-  // Handle default rules toggle
-  const handleDefaultRulesToggle = (enabled) => {
-    setDefaultRulesEnabled(enabled);
-    updateSetting("defaultRulesEnabled", enabled);
-  };
-
-  const handleCustomRulesToggle = (enabled) => {
-    setCustomRulesEnabled(enabled);
-    updateSetting("customRulesEnabled", enabled);
-  };
-
-  const handlePatternRulesToggle = (enabled) => {
-    setPatternRulesEnabled(enabled);
-    updateSetting("patternRulesEnabled", enabled);
-  };
 
   // Handle removing custom rule
   const handleRemoveCustomRule = (ruleId) => {
-    const updatedRules = customRules.filter((rule) => rule.id !== ruleId);
-    setCustomRules(updatedRules);
-    updateSetting("customRules", updatedRules);
+    const updatedRules = values.customRules.filter((rule) => rule.id !== ruleId);
+    updateValue("customRules", updatedRules);
   };
 
   // Handle adding new custom rule
   const handleAddNewRule = (newRule) => {
-    const updatedCustomRules = [...customRules, newRule];
-    setCustomRules(updatedCustomRules);
-    updateSetting("customRules", updatedCustomRules);
+    const updatedCustomRules = [...values.customRules, newRule];
+    updateValue("customRules", updatedCustomRules);
   };
 
   // Handle editing existing custom rule
   const handleEditCustomRule = (editedRule) => {
-    const updatedCustomRules = customRules.map((rule) =>
+    const updatedCustomRules = values.customRules.map((rule) =>
       rule.id === editedRule.id ? editedRule : rule
     );
-    setCustomRules(updatedCustomRules);
-    updateSetting("customRules", updatedCustomRules);
-  };
-
-  // Handle network block patterns
-  const handleNetworkBlockChange = (patterns) => {
-    setNetworkBlockPatterns(patterns);
-    updateSetting("networkBlockPatterns", patterns);
-  };
-
-  // Handle navigation guardian toggle
-  const handleNavigationGuardToggle = (enabled) => {
-    setNavigationGuardEnabled(enabled);
-    updateSetting("navigationGuardEnabled", enabled);
-  };
-
-  // Handle default block request toggle
-  const handleDefaultBlockRequestToggle = (enabled) => {
-    setDefaultBlockRequestEnabled(enabled);
-    updateSetting("defaultBlockRequestEnabled", enabled);
+    updateValue("customRules", updatedCustomRules);
   };
 
   if (loading) {
@@ -138,6 +52,10 @@ function SettingsBeta() {
         <Loading />
       </div>
     );
+  }
+
+  if (error) {
+    return <ErrorDisplay error={error} />;
   }
 
   return (
@@ -152,41 +70,41 @@ function SettingsBeta() {
 
           <div className="flex flex-col space-y-8 px-8">
             <WhitelistManager
-              domains={whitelist}
-              onDomainsChange={handleWhitelistChange}
+              domains={values.whitelist}
+              onDomainsChange={(domains) => updateValue("whitelist", domains)}
               disabled={loading}
             />
 
             <DefaultSelectorRuleManager
-              checked={defaultRulesEnabled}
-              onChange={handleDefaultRulesToggle}
+              checked={values.defaultRulesEnabled}
+              onChange={(enabled) => updateValue("defaultRulesEnabled", enabled)}
             />
 
             <CustomRulesManager
-              enabled={customRulesEnabled}
-              onToggleEnable={handleCustomRulesToggle}
-              customRules={customRules}
+              enabled={values.customRulesEnabled}
+              onToggleEnable={(enabled) => updateValue("customRulesEnabled", enabled)}
+              customRules={values.customRules}
               onRemoveCustomRule={handleRemoveCustomRule}
               onAddNewRule={handleAddNewRule}
               onEditRule={handleEditCustomRule}
             />
 
             <PatternRules
-              enabled={patternRulesEnabled}
-              onToggleCheck={handlePatternRulesToggle}
+              enabled={values.patternRulesEnabled}
+              onToggleCheck={(enabled) => updateValue("patternRulesEnabled", enabled)}
             />
 
             <BlockRequestsManager
-              checked={defaultBlockRequestEnabled}
-              values={networkBlockPatterns}
-              onToggleCheck={handleDefaultBlockRequestToggle}
-              onChange={handleNetworkBlockChange}
+              checked={values.defaultBlockRequestEnabled}
+              values={values.networkBlockPatterns}
+              onToggleCheck={(enabled) => updateValue("defaultBlockRequestEnabled", enabled)}
+              onChange={(patterns) => updateValue("networkBlockPatterns", patterns)}
             />
 
             <NavigationGuardian
-              enabled={navigationGuardEnabled}
-              navigationStats={navigationStats}
-              onChange={handleNavigationGuardToggle}
+              enabled={values.navigationGuardEnabled}
+              navigationStats={values.navigationStats}
+              onChange={(enabled) => updateValue("navigationGuardEnabled", enabled)}
             />
           </div>
         </div>
