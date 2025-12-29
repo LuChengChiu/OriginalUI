@@ -54,6 +54,7 @@ export class NetworkBlockManager {
         results.push({
           source: source.getName(),
           success: true,
+          ruleCount: dnrRules.length,  // Fixed: Use ruleCount for consistency
           allocated: dnrRules.length,
           truncated: allocation?.truncated ?? 0
         });

@@ -78,9 +78,6 @@ async function updateRulesetStates(enabled) {
       } catch (error) {
         console.error('Failed to update dynamic rules via NetworkBlockManager:', error);
       }
-
-      // Maintain backward compatibility with old blocking system
-      await updateBlockingRules();
     } else {
       // Disable static rulesets
       await chrome.declarativeNetRequest.updateEnabledRulesets({
@@ -107,8 +104,6 @@ const REMOTE_RULES_URL =
   "https://raw.githubusercontent.com/LuChengChiu/OriginalUI/main/src/data/defaultRules.json";
 const REMOTE_WHITELIST_URL =
   "https://raw.githubusercontent.com/LuChengChiu/OriginalUI/main/src/data/defaultWhitelist.json";
-const REMOTE_BLOCK_REQUESTS_URL =
-  "https://raw.githubusercontent.com/LuChengChiu/OriginalUI/main/src/network-blocking/data/default-block-requests.json";
 
 // Fetch default rules from remote URL with fallback to local file
 async function fetchDefaultRules() {
@@ -172,188 +167,6 @@ async function fetchDefaultWhitelist() {
   }
 }
 
-// Fetch default block request list from remote URL with fallback to local file
-async function fetchDefaultBlockRequests() {
-  // try {
-  //   // Try to fetch from remote URL first
-  //   const response = await fetch(REMOTE_BLOCK_REQUESTS_URL);
-  //   if (response.ok) {
-  //     const remoteBlockRequests = await response.json();
-  //     console.log("Fetched block requests from remote URL", remoteBlockRequests);
-  //     return remoteBlockRequests;
-  //   }
-  // } catch (error) {
-  //   console.log(
-  //     "Failed to fetch remote block requests, falling back to local:",
-  //     error.message
-  //   );
-  // }
-
-  // Fallback to local default block requests
-  try {
-    const localResponse = await fetch(
-      chrome.runtime.getURL("network-blocking/data/default-block-requests.json")
-    );
-    const localBlockRequests = await localResponse.json();
-    console.log("Using local default block requests", localBlockRequests);
-    return localBlockRequests;
-  } catch (error) {
-    console.error("Failed to load local default block requests:", error);
-    return [
-      "malware-site.com",
-      "tracking-api.io",
-      "suspicious-ads.net",
-      "malicious-redirect.com",
-    ];
-  }
-}
-
-// Request blocking system using declarativeNetRequest API
-// Convert block request entries to declarativeNetRequest rules
-function createBlockingRules(blockRequests) {
-  // Valid resourceTypes according to Chrome's declarativeNetRequest API
-  const validResourceTypes = new Set([
-    "csp_report",
-    "font",
-    "image",
-    "main_frame",
-    "media",
-    "object",
-    "other",
-    "ping",
-    "script",
-    "stylesheet",
-    "sub_frame",
-    "webbundle",
-    "websocket",
-    "webtransport",
-    "xmlhttprequest",
-  ]);
-
-  return blockRequests.map((entry, index) => {
-    // Determine priority based on severity
-    let priority = 1;
-    if (entry.severity === "critical") priority = 3;
-    else if (entry.severity === "high") priority = 2;
-
-    // Use resourceTypes from entry or default fallback
-    // Filter out invalid resourceTypes and convert 'fetch' to 'xmlhttprequest'
-    let resourceTypes = entry.resourceTypes || ["xmlhttprequest", "script"];
-    resourceTypes = resourceTypes
-      .map((type) => (type === "fetch" ? "xmlhttprequest" : type))
-      .filter((type) => validResourceTypes.has(type));
-
-    // Ensure we have at least one valid resourceType
-    if (resourceTypes.length === 0) {
-      resourceTypes = ["xmlhttprequest"];
-    }
-
-    // Handle regex patterns vs domain patterns
-    let condition;
-    if (entry.isRegex) {
-      condition = {
-        regexFilter: entry.trigger,
-        resourceTypes,
-      };
-    } else {
-      condition = {
-        urlFilter: `*://${entry.trigger}/*`, // Fixed: matches both example.com and *.example.com
-        resourceTypes,
-      };
-    }
-
-    // Use safe ID range starting from 10000 to avoid conflicts
-    const baseId = parseInt(entry.id.replace(/\D/g, "")) || index + 1;
-    const rule = {
-      id: 10000 + baseId, // uBO_011 becomes 10011, avoiding conflicts
-      priority,
-      action: { type: "block" },
-      condition,
-    };
-
-    // Debug logging for rule creation
-    console.log(`OriginalUI: Creating blocking rule for ${entry.trigger}:`, {
-      id: rule.id,
-      urlFilter: condition.urlFilter,
-      resourceTypes: condition.resourceTypes,
-      priority: rule.priority,
-    });
-
-    return rule;
-  });
-}
-
-// Update dynamic blocking rules
-async function updateBlockingRules() {
-  // Context validation before proceeding
-  if (!isExtensionContextValid()) {
-    console.warn(
-      "OriginalUI: Extension context invalid, skipping blocking rules update"
-    );
-    return;
-  }
-
-  try {
-    console.log("OriginalUI: Starting updateBlockingRules...");
-
-    const { blockRequestList = [], requestBlockingEnabled = true } =
-      await safeStorageGet(["blockRequestList", "requestBlockingEnabled"]);
-
-    console.log("OriginalUI: Storage retrieved:", {
-      blockRequestListCount: blockRequestList.length,
-      requestBlockingEnabled,
-      blockRequestList: blockRequestList.map((r) => ({
-        id: r.id,
-        trigger: r.trigger,
-      })),
-    });
-
-    if (!requestBlockingEnabled) {
-      // Remove all dynamic rules if blocking is disabled
-      const existingRules =
-        await chrome.declarativeNetRequest.getDynamicRules();
-      const existingRuleIds = existingRules.map((rule) => rule.id);
-      if (existingRuleIds.length > 0) {
-        await chrome.declarativeNetRequest.updateDynamicRules({
-          removeRuleIds: existingRuleIds,
-        });
-      }
-      console.log("Request blocking disabled, removed all rules");
-      return;
-    }
-
-    // Get current dynamic rules
-    const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
-    const existingRuleIds = existingRules.map((rule) => rule.id);
-    console.log("OriginalUI: Existing rules count:", existingRules.length);
-
-    // Remove existing rules and add new ones
-    const newRules = createBlockingRules(blockRequestList);
-    console.log("OriginalUI: Created new rules count:", newRules.length);
-
-    await chrome.declarativeNetRequest.updateDynamicRules({
-      removeRuleIds: existingRuleIds,
-      addRules: newRules,
-    });
-
-    // Verify rules were applied
-    const finalRules = await chrome.declarativeNetRequest.getDynamicRules();
-    console.log("OriginalUI: Rules successfully updated:", {
-      removedCount: existingRuleIds.length,
-      addedCount: newRules.length,
-      finalRulesCount: finalRules.length,
-      pubfutureRule: finalRules.find((r) =>
-        r.condition?.urlFilter?.includes("pubfuture-ad.com")
-      ),
-    });
-
-    console.log(
-      `Updated blocking rules for ${blockRequestList.length} domains`
-    );
-  } catch (error) {
-    console.error("Failed to update blocking rules:", error);
-  }
-}
 
 // Initialize default storage structure on installation
 chrome.runtime.onInstalled.addListener(async () => {
@@ -365,11 +178,10 @@ chrome.runtime.onInstalled.addListener(async () => {
     return;
   }
 
-  const [defaultRules, defaultWhitelist, defaultBlockRequests] =
+  const [defaultRules, defaultWhitelist] =
     await Promise.all([
       fetchDefaultRules(),
       fetchDefaultWhitelist(),
-      fetchDefaultBlockRequests(),
     ]);
 
   // Set default storage values if not already set
@@ -387,8 +199,6 @@ chrome.runtime.onInstalled.addListener(async () => {
       "popUnderProtectionEnabled",
       "scriptAnalysisEnabled",
       "navigationStats",
-      "blockRequestList",
-      "requestBlockingEnabled",
       "defaultBlockRequestEnabled",
       "networkBlockPatterns",
     ]);
@@ -430,23 +240,11 @@ chrome.runtime.onInstalled.addListener(async () => {
     }
     if (!result.navigationStats)
       updates.navigationStats = { blockedCount: 0, allowedCount: 0 };
-    if (!result.blockRequestList)
-      updates.blockRequestList = defaultBlockRequests;
-    if (result.requestBlockingEnabled === undefined)
-      updates.requestBlockingEnabled = true;
     if (!result.networkBlockPatterns)
       updates.networkBlockPatterns = [];
 
     // Always update default rules from remote
     updates.defaultRules = defaultRules;
-
-    // FORCE UPDATE: Always refresh blockRequestList with latest data
-    updates.blockRequestList = defaultBlockRequests;
-    console.log(
-      "OriginalUI: FORCE updating blockRequestList with",
-      defaultBlockRequests.length,
-      "entries"
-    );
 
     // Merge default whitelist with user's custom additions
     const customWhitelist = result.customWhitelist || [];
@@ -461,12 +259,9 @@ chrome.runtime.onInstalled.addListener(async () => {
           Object.keys(updates)
         );
 
-        // Initialize network blocking rulesets (EasyList + defaultBlockRequests)
+        // Initialize network blocking rulesets (EasyList + NetworkBlockManager)
         const blockingEnabled = result.defaultBlockRequestEnabled !== false;
         await updateRulesetStates(blockingEnabled);
-
-        // Maintain backward compatibility with old blocking system
-        updateBlockingRules();
       } catch (error) {
         console.error(
           "OriginalUI Installation Failed: Could not save settings:",
@@ -476,13 +271,11 @@ chrome.runtime.onInstalled.addListener(async () => {
         try {
           await chrome.storage.local.set({
             defaultRules: updates.defaultRules,
-            blockRequestList: updates.blockRequestList,
             isActive: updates.isActive,
           });
           console.log(
             "OriginalUI Installation: Saved critical settings as fallback"
           );
-          updateBlockingRules();
         } catch (fallbackError) {
           console.error(
             "OriginalUI Installation: Even fallback failed:",
@@ -490,24 +283,12 @@ chrome.runtime.onInstalled.addListener(async () => {
           );
         }
       }
-    } else {
-      // Still need to initialize blocking rules if no updates
-      updateBlockingRules();
     }
   } catch (error) {
     console.error(
       "OriginalUI: Failed to initialize default storage during installation:",
       error
     );
-    // Attempt to initialize blocking rules even if storage initialization failed
-    try {
-      updateBlockingRules();
-    } catch (rulesError) {
-      console.error(
-        "OriginalUI: Failed to initialize blocking rules during installation:",
-        rulesError
-      );
-    }
   }
 
   // Periodically update default rules and whitelist (once per day)
@@ -534,18 +315,14 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
   if (alarm.name === "updateDefaults") {
     try {
-      const [defaultRules, defaultWhitelist, defaultBlockRequests] =
+      const [defaultRules, defaultWhitelist] =
         await Promise.all([
           fetchDefaultRules(),
           fetchDefaultWhitelist(),
-          fetchDefaultBlockRequests(),
         ]);
 
       // Update rules but preserve user's whitelist additions
-      const storageResult = await safeStorageGet([
-        "whitelist",
-        "blockRequestList",
-      ]);
+      const storageResult = await safeStorageGet(["whitelist"]);
       const currentWhitelist = storageResult.whitelist || [];
       const mergedWhitelist = [
         ...new Set([...defaultWhitelist, ...currentWhitelist]),
@@ -555,9 +332,8 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
         {
           defaultRules,
           whitelist: mergedWhitelist,
-          blockRequestList: defaultBlockRequests,
         },
-        ["blockRequestList", "defaultRules", "whitelist"],
+        ["defaultRules", "whitelist"],
         { requireValidation: false, validateWrite: false }
       );
 
@@ -570,12 +346,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
             timestamp: new Date().toISOString(),
           }
         );
-        // For scheduled updates, we can be more strict and skip rule updates if storage failed
-        return;
       }
-
-      // Update blocking rules after storage update
-      updateBlockingRules();
     } catch (error) {
       console.error(
         "OriginalUI: Failed to update defaults during scheduled alarm:",
@@ -734,8 +505,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     "updateWhitelist",
     "refreshDefaultRules",
     "refreshDefaultWhitelist",
-    "refreshDefaultBlockRequests",
-    "updateRequestBlocking",
   ];
 
   if (criticalActions.includes(action)) {
@@ -933,66 +702,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
-  if (request.action === "refreshDefaultBlockRequests") {
-    (async () => {
-      try {
-        const blockRequests = await fetchDefaultBlockRequests();
-        const blockRequestUpdateResult = await safeStorageSetWithValidation(
-          { blockRequestList: blockRequests },
-          ["blockRequestList"]
-        );
-        if (!blockRequestUpdateResult.success) {
-          throw new Error(
-            `Block request list update validation failed: ${blockRequestUpdateResult.validationResult?.inconsistencies?.join(
-              ", "
-            )}`
-          );
-        }
-        await updateBlockingRules();
-        sendResponse({ success: true, blockRequests });
-      } catch (error) {
-        console.error("Failed to refresh default block requests:", error);
-        sendResponse({
-          success: false,
-          error:
-            "Failed to update blocking rules. Some network protection may be unavailable.",
-          details: error.message,
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (request.action === "updateRequestBlocking") {
-    const { enabled } = request;
-
-    // VALIDATE INPUT
-    if (typeof enabled !== "boolean") {
-      console.warn("OriginalUI: Invalid enabled parameter:", enabled);
-      sendResponse({
-        success: false,
-        error: "Invalid parameter - enabled must be boolean",
-      });
-      return false;
-    }
-
-    (async () => {
-      try {
-        await safeStorageSet({ requestBlockingEnabled: enabled });
-        await updateBlockingRules();
-        sendResponse({ success: true, enabled });
-      } catch (error) {
-        console.error("Failed to update request blocking setting:", error);
-        sendResponse({
-          success: false,
-          error:
-            "Failed to update network blocking settings. Protection status may be inconsistent.",
-          details: error.message,
-        });
-      }
-    })();
-    return true;
-  }
 
   if (request.action === "recordBlockedRequest") {
     const { data } = request;
@@ -1119,12 +828,7 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
       })();
     }
 
-    // Update blocking rules if request blocking settings changed
-    if (changes.blockRequestList || changes.requestBlockingEnabled) {
-      updateBlockingRules();
-    }
-
-    // NEW: React to defaultBlockRequestEnabled toggle
+    // React to defaultBlockRequestEnabled toggle
     if (changes.defaultBlockRequestEnabled) {
       const enabled = changes.defaultBlockRequestEnabled.newValue;
       (async () => {

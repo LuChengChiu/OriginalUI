@@ -61,7 +61,7 @@ describe('EasyListParser', () => {
       expect(result.every(line => line.length > 0)).toBe(true);
     });
 
-    test('should only include network blocking rules (|| or $)', async () => {
+    test('should pass all non-comment rules to converter', async () => {
       const content = `
 ||network-rule.com^
 ##.cosmetic-filter
@@ -73,9 +73,14 @@ example.com##selector
 
       const result = await parser.parse(content);
 
-      // Should only include lines with || or $
-      expect(result).toHaveLength(3);
-      expect(result.every(line => line.includes('||') || line.includes('$'))).toBe(true);
+      // Should pass all non-comment lines to converter (let @eyeo/abp2dnr handle validation)
+      expect(result).toHaveLength(6);
+      expect(result).toContain('||network-rule.com^');
+      expect(result).toContain('##.cosmetic-filter');
+      expect(result).toContain('||another-network.com^$script');
+      expect(result).toContain('###ad-container');
+      expect(result).toContain('/path/*$third-party');
+      expect(result).toContain('example.com##selector');
     });
 
     test('should trim whitespace from rules', async () => {
