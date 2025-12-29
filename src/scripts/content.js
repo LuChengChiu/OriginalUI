@@ -4,18 +4,18 @@
  */
 
 // Import modules
-import { ElementRemover } from "./modules/ElementRemover.js";
+import AdDetectionEngine from "./adDetectionEngine.js";
 import { ClickHijackingProtector } from "./modules/ClickHijackingProtector.js";
-import { ScriptAnalyzer } from "./modules/ScriptAnalyzer.js";
-import { NavigationGuardian } from "./modules/NavigationGuardian.js";
+import { ElementRemover } from "./modules/ElementRemover.js";
 import { CleanupRegistry } from "./modules/ICleanable.js";
 import { MemoryMonitor } from "./modules/MemoryMonitor.js";
+import { ScriptAnalyzer } from "./modules/ScriptAnalyzer.js";
+import { NavigationGuardian } from "./modules/navigation-guardian/navigation-guardian.js";
 import {
-  safeStorageGet,
   debouncedStorageSet,
   isExtensionContextValid,
+  safeStorageGet,
 } from "./utils/chromeApiSafe.js";
-import AdDetectionEngine from "./adDetectionEngine.js";
 
 /**
  * Main OriginalUI Controller - Orchestrates all protection modules
@@ -668,7 +668,9 @@ class OriginalUIController {
       memoryHistory: memoryReport.history.length,
     });
 
-    console.log("OriginalUI: Controller destructor completed with verification");
+    console.log(
+      "OriginalUI: Controller destructor completed with verification"
+    );
   }
 }
 
@@ -709,7 +711,9 @@ document.addEventListener("visibilitychange", () => {
 // Extension context invalidation cleanup
 const checkExtensionContext = () => {
   if (!isExtensionContextValid()) {
-    console.debug("OriginalUI: Extension context invalidated, triggering cleanup");
+    console.debug(
+      "OriginalUI: Extension context invalidated, triggering cleanup"
+    );
     performCleanup("extension-context-invalidated");
   }
 };

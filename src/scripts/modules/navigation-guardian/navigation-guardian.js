@@ -1,39 +1,41 @@
 /**
  * NavigationGuardian Module - Comprehensive cross-origin navigation protection
- * 
+ *
  * @fileoverview Provides multi-layered protection against malicious navigation attempts including
  * pop-unders, redirects, and cross-origin attacks. Features intelligent modal confirmation system,
  * whitelist management, and comprehensive statistics tracking with memory leak prevention.
- * 
+ *
  * Now modularized with SecurityValidator and ModalManager for improved maintainability.
- * 
+ *
  * @example
  * // Basic initialization
  * const guardian = new NavigationGuardian();
  * guardian.initialize(['trusted-site.com'], { blockedCount: 0, allowedCount: 0 });
- * 
+ *
  * @example
  * // Enable/disable protection
  * guardian.setEnabled(false); // Temporarily disable
  * guardian.setEnabled(true);  // Re-enable protection
- * 
+ *
  * @example
  * // Access statistics and cleanup
  * const stats = guardian.getNavigationStats();
  * console.log(`Blocked: ${stats.blockedCount}, Allowed: ${stats.allowedCount}`);
  * guardian.cleanup(); // Clean up resources
- * 
+ *
  * @module NavigationGuardian
  * @extends CleanableModule
  * @since 1.0.0
  * @author OriginalUI Team
  */
 
-import { MAX_Z_INDEX } from '../constants.js';
-import { LIFECYCLE_PHASES, CleanableModule } from './ICleanable.js';
-import { SecurityValidator } from './navigation-guardian/SecurityValidator.js';
-import { ModalManager } from './navigation-guardian/ModalManager.js';
-import { isExtensionContextValid, safeStorageSet } from '../utils/chromeApiSafe.js';
+import {
+  isExtensionContextValid,
+  safeStorageSet,
+} from "../../utils/chromeApiSafe.js";
+import { CleanableModule, LIFECYCLE_PHASES } from "../ICleanable.js";
+import { ModalManager } from "./modal-manager.js";
+import { SecurityValidator } from "./security-validator.js";
 
 /**
  * NavigationGuardian class providing comprehensive cross-origin navigation protection
@@ -47,28 +49,28 @@ export class NavigationGuardian extends CleanableModule {
    */
   constructor() {
     super();
-    
+
     /**
      * Security validator for URL and threat validation
      * @type {SecurityValidator}
      * @private
      */
     this.securityValidator = new SecurityValidator();
-    
+
     /**
      * Modal manager for UI confirmation modals
      * @type {ModalManager}
      * @private
      */
     this.modalManager = new ModalManager();
-    
+
     /**
      * Enable/disable state for navigation protection
      * @type {boolean}
      * @private
      */
     this.isEnabled = true;
-    
+
     /**
      * Navigation attempt statistics
      * @type {Object}
@@ -77,42 +79,42 @@ export class NavigationGuardian extends CleanableModule {
      * @private
      */
     this.navigationStats = { blockedCount: 0, allowedCount: 0 };
-    
+
     /**
      * WeakMap for automatic garbage collection of pending modals
      * @type {WeakMap<Object, Object>}
      * @private
      */
     this.pendingNavigationModals = new WeakMap(); // Use WeakMap for auto GC
-    
+
     /**
      * Map for string-keyed modal tracking with size limits
      * @type {Map<string, Object>}
      * @private
      */
     this.pendingModalKeys = new Map(); // Separate storage for string keys with limits
-    
+
     /**
      * Array of whitelisted domains that bypass navigation protection
      * @type {string[]}
      * @private
      */
     this.whitelist = [];
-    
+
     /**
      * Cached whitelist lookup for performance optimization
      * @type {Set<string>|null}
      * @private
      */
     this.whitelistCache = null;
-    
+
     /**
      * Registered event listeners for cleanup tracking
      * @type {Array<Object>}
      * @private
      */
     this.eventListeners = [];
-    
+
     /**
      * Enhanced modal cache management configuration
      * @type {Object}
@@ -129,11 +131,14 @@ export class NavigationGuardian extends CleanableModule {
       totalCreated: 0,
       totalCleaned: 0,
       currentPending: 0,
-      maxPendingReached: 0
+      maxPendingReached: 0,
     };
-    
+
     // Setup modal manager callbacks with null safety checks
-    if (this.modalManager && typeof this.modalManager.setStatisticsCallback === 'function') {
+    if (
+      this.modalManager &&
+      typeof this.modalManager.setStatisticsCallback === "function"
+    ) {
       this.modalManager.setStatisticsCallback((allowed) => {
         if (allowed) {
           this.navigationStats.allowedCount++;
@@ -143,19 +148,27 @@ export class NavigationGuardian extends CleanableModule {
         this.updateNavigationStats();
       });
     } else {
-      console.error('OriginalUI: ModalManager not properly initialized');
+      console.error("OriginalUI: ModalManager not properly initialized");
     }
-    
-    if (this.modalManager && typeof this.modalManager.setURLValidator === 'function' &&
-        this.securityValidator && typeof this.securityValidator.validateURLSecurity === 'function') {
+
+    if (
+      this.modalManager &&
+      typeof this.modalManager.setURLValidator === "function" &&
+      this.securityValidator &&
+      typeof this.securityValidator.validateURLSecurity === "function"
+    ) {
       this.modalManager.setURLValidator((url) => {
         return this.securityValidator.validateURLSecurity(url);
       });
     } else {
-      console.error('OriginalUI: SecurityValidator or ModalManager not properly initialized');
+      console.error(
+        "OriginalUI: SecurityValidator or ModalManager not properly initialized"
+      );
     }
-    
-    console.log('OriginalUI: NavigationGuardian initialized with enhanced modular cleanup');
+
+    console.log(
+      "OriginalUI: NavigationGuardian initialized with enhanced modular cleanup"
+    );
   }
 
   /**
@@ -165,22 +178,25 @@ export class NavigationGuardian extends CleanableModule {
    * @param {number} stats.blockedCount - Number of previously blocked navigation attempts
    * @param {number} stats.allowedCount - Number of previously allowed navigation attempts
    * @throws {Error} If whitelist is not an array or stats is not an object
-   * 
+   *
    * @example
    * // Initialize with trusted domains and existing stats
    * guardian.initialize(['google.com', 'github.com'], { blockedCount: 5, allowedCount: 10 });
    */
   initialize(whitelist = [], stats = { blockedCount: 0, allowedCount: 0 }) {
     this.setLifecyclePhase(LIFECYCLE_PHASES.INITIALIZING);
-    
+
     this.whitelist = whitelist;
     this.navigationStats = stats;
     this.setupEventListeners();
     this.injectNavigationScript();
     this.startModalCacheCleanup();
-    
+
     this.setLifecyclePhase(LIFECYCLE_PHASES.ACTIVE);
-    console.log('OriginalUI: NavigationGuardian initialized with whitelist:', whitelist.length);
+    console.log(
+      "OriginalUI: NavigationGuardian initialized with whitelist:",
+      whitelist.length
+    );
   }
 
   /**
@@ -188,7 +204,7 @@ export class NavigationGuardian extends CleanableModule {
    */
   enable() {
     this.isEnabled = true;
-    console.log('OriginalUI: NavigationGuardian enabled');
+    console.log("OriginalUI: NavigationGuardian enabled");
   }
 
   /**
@@ -196,7 +212,7 @@ export class NavigationGuardian extends CleanableModule {
    */
   disable() {
     this.isEnabled = false;
-    console.log('OriginalUI: NavigationGuardian disabled');
+    console.log("OriginalUI: NavigationGuardian disabled");
   }
 
   /**
@@ -207,34 +223,34 @@ export class NavigationGuardian extends CleanableModule {
     const clickHandler = this.handleLinkClick.bind(this);
     const submitHandler = this.handleFormSubmit.bind(this);
     const messageHandler = this.handleNavigationMessage.bind(this);
-    
-    document.addEventListener('click', clickHandler, true);
+
+    document.addEventListener("click", clickHandler, true);
     this.eventListeners.push({
       element: document,
-      type: 'click',
+      type: "click",
       handler: clickHandler,
-      options: true
+      options: true,
     });
-    
+
     // Listen for form submissions (capture phase)
-    document.addEventListener('submit', submitHandler, true);
+    document.addEventListener("submit", submitHandler, true);
     this.eventListeners.push({
       element: document,
-      type: 'submit', 
+      type: "submit",
       handler: submitHandler,
-      options: true
+      options: true,
     });
-    
+
     // Listen for messages from injected script
-    window.addEventListener('message', messageHandler);
+    window.addEventListener("message", messageHandler);
     this.eventListeners.push({
       element: window,
-      type: 'message',
+      type: "message",
       handler: messageHandler,
-      options: undefined
+      options: undefined,
     });
-    
-    console.log('OriginalUI: Navigation Guardian listeners setup complete');
+
+    console.log("OriginalUI: Navigation Guardian listeners setup complete");
   }
 
   /**
@@ -245,23 +261,23 @@ export class NavigationGuardian extends CleanableModule {
     if (!this.isEnabled || this.isDomainWhitelisted(this.getCurrentDomain())) {
       return;
     }
-    
-    const link = event.target.closest('a');
+
+    const link = event.target.closest("a");
     if (!link) return;
-    
-    const href = link.getAttribute('href');
+
+    const href = link.getAttribute("href");
     if (!href || !this.isCrossOrigin(href)) return;
-    
+
     // Skip if target domain is whitelisted
     if (this.isNavigationTrusted(href)) return;
-    
+
     event.preventDefault();
     event.stopPropagation();
-    
+
     this.showNavigationModal(href, (allowed) => {
       if (allowed) {
-        if (link.target === '_blank') {
-          window.open(href, '_blank');
+        if (link.target === "_blank") {
+          window.open(href, "_blank");
         } else {
           window.location.href = href;
         }
@@ -277,24 +293,24 @@ export class NavigationGuardian extends CleanableModule {
     if (!this.isEnabled || this.isDomainWhitelisted(this.getCurrentDomain())) {
       return;
     }
-    
+
     const form = event.target;
     if (!(form instanceof HTMLFormElement)) return;
-    
-    const action = form.getAttribute('action') || window.location.href;
+
+    const action = form.getAttribute("action") || window.location.href;
     if (!this.isCrossOrigin(action)) return;
-    
+
     // Skip if target domain is whitelisted
     if (this.isNavigationTrusted(action)) return;
-    
+
     event.preventDefault();
     event.stopPropagation();
-    
+
     this.showNavigationModal(action, (allowed) => {
       if (allowed) {
-        if (form.target === '_blank') {
+        if (form.target === "_blank") {
           const newForm = form.cloneNode(true);
-          newForm.target = '_blank';
+          newForm.target = "_blank";
           document.body.appendChild(newForm);
           newForm.submit();
           document.body.removeChild(newForm);
@@ -311,88 +327,128 @@ export class NavigationGuardian extends CleanableModule {
    */
   handleNavigationMessage(event) {
     if (event.source !== window) return;
-    
-    if (event.data?.type === 'NAV_GUARDIAN_CHECK') {
+
+    if (event.data?.type === "NAV_GUARDIAN_CHECK") {
       const { url, messageId, popUnderAnalysis } = event.data;
-      
+
       // If this messageId is already being processed, ignore duplicate
       if (this.pendingModalKeys.has(messageId)) {
-        console.debug('OriginalUI: Ignoring duplicate navigation request:', messageId);
+        console.debug(
+          "OriginalUI: Ignoring duplicate navigation request:",
+          messageId
+        );
         return;
       }
-      
+
       let allowed = true;
-      
+
       // Skip navigation protection if current domain is whitelisted
       if (this.isDomainWhitelisted(this.getCurrentDomain())) {
         // Send immediate response for allowed navigation from whitelisted domain
-        window.postMessage({
-          type: 'NAV_GUARDIAN_RESPONSE',
-          messageId: messageId,
-          allowed: true
-        }, '*');
+        window.postMessage(
+          {
+            type: "NAV_GUARDIAN_RESPONSE",
+            messageId: messageId,
+            allowed: true,
+          },
+          "*"
+        );
         return;
       }
-      
-      if (this.isEnabled && this.isCrossOrigin(url) && !this.isNavigationTrusted(url)) {
+
+      if (
+        this.isEnabled &&
+        this.isCrossOrigin(url) &&
+        !this.isNavigationTrusted(url)
+      ) {
         // Analyze URL for threats using SecurityValidator (with null safety)
         let urlAnalysis = { riskScore: 0, threats: [], isPopUnder: false }; // Default safe values
-        
-        if (this.securityValidator && typeof this.securityValidator.analyzeThreats === 'function') {
+
+        if (
+          this.securityValidator &&
+          typeof this.securityValidator.analyzeThreats === "function"
+        ) {
           try {
             urlAnalysis = this.securityValidator.analyzeThreats(url);
           } catch (analysisError) {
-            console.error('OriginalUI: Error analyzing URL threats:', analysisError);
+            console.error(
+              "OriginalUI: Error analyzing URL threats:",
+              analysisError
+            );
             // Use default safe values and continue execution
           }
         } else {
-          console.warn('OriginalUI: SecurityValidator not available for threat analysis');
+          console.warn(
+            "OriginalUI: SecurityValidator not available for threat analysis"
+          );
         }
-        
+
         // Combine pop-under analysis from injected script with URL analysis
         const combinedAnalysis = {
-          riskScore: (popUnderAnalysis?.score || 0) + (urlAnalysis?.riskScore || 0),
-          threats: [...(popUnderAnalysis?.threats || []), ...(urlAnalysis?.threats || [])],
-          isPopUnder: (popUnderAnalysis?.isPopUnder || false) || (urlAnalysis?.isPopUnder || false)
+          riskScore:
+            (popUnderAnalysis?.score || 0) + (urlAnalysis?.riskScore || 0),
+          threats: [
+            ...(popUnderAnalysis?.threats || []),
+            ...(urlAnalysis?.threats || []),
+          ],
+          isPopUnder:
+            popUnderAnalysis?.isPopUnder ||
+            false ||
+            urlAnalysis?.isPopUnder ||
+            false,
         };
-        
+
         // Track this modal to prevent duplicates
         // Enforce cache limits before adding new entry
         this.enforcePendingModalLimits();
         this.pendingModalKeys.set(messageId, {
           timestamp: Date.now(),
           url: url,
-          analysis: combinedAnalysis
+          analysis: combinedAnalysis,
         });
         this.modalCacheStats.totalCreated++;
         this.modalCacheStats.currentPending++;
-        
-        if (this.modalCacheStats.currentPending > this.modalCacheStats.maxPendingReached) {
-          this.modalCacheStats.maxPendingReached = this.modalCacheStats.currentPending;
+
+        if (
+          this.modalCacheStats.currentPending >
+          this.modalCacheStats.maxPendingReached
+        ) {
+          this.modalCacheStats.maxPendingReached =
+            this.modalCacheStats.currentPending;
         }
-        
-        this.showNavigationModal(url, (userAllowed) => {
-          // Remove from pending map and update stats
-          if (this.pendingModalKeys.delete(messageId)) {
-            this.modalCacheStats.currentPending--;
-          }
-          
-          // Send response with the user's decision
-          window.postMessage({
-            type: 'NAV_GUARDIAN_RESPONSE',
-            messageId: messageId,
-            allowed: userAllowed
-          }, '*');
-        }, combinedAnalysis);
+
+        this.showNavigationModal(
+          url,
+          (userAllowed) => {
+            // Remove from pending map and update stats
+            if (this.pendingModalKeys.delete(messageId)) {
+              this.modalCacheStats.currentPending--;
+            }
+
+            // Send response with the user's decision
+            window.postMessage(
+              {
+                type: "NAV_GUARDIAN_RESPONSE",
+                messageId: messageId,
+                allowed: userAllowed,
+              },
+              "*"
+            );
+          },
+          combinedAnalysis
+        );
         return; // Don't send immediate response
       }
-      
+
       // Send immediate response for allowed navigation
-      window.postMessage({
-        type: 'NAV_GUARDIAN_RESPONSE',
-        messageId: messageId,
-        allowed: allowed
-      }, '*');
+      window.postMessage(
+        {
+          type: "NAV_GUARDIAN_RESPONSE",
+          messageId: messageId,
+          allowed: allowed,
+        },
+        "*"
+      );
     }
   }
 
@@ -404,40 +460,40 @@ export class NavigationGuardian extends CleanableModule {
    */
   showNavigationModal(targetURL, callback, threatDetails = null) {
     // Validate callback function
-    if (!callback || typeof callback !== 'function') {
-      console.error('OriginalUI: Invalid callback provided to showNavigationModal');
-      return;
-    }
-
-    // Check if ModalManager is available
-    if (!this.modalManager || typeof this.modalManager.showConfirmationModal !== 'function') {
-      console.error('OriginalUI: ModalManager not available, denying navigation by default');
-      try {
-        callback(false);
-      } catch (callbackError) {
-        console.error('OriginalUI: Error in callback during fallback:', callbackError);
-      }
+    if (!callback || typeof callback !== "function") {
+      console.error(
+        "OriginalUI: Invalid callback provided to showNavigationModal"
+      );
       return;
     }
 
     // Use ModalManager for modal display
-    this.modalManager.showConfirmationModal({
-      url: targetURL,
-      threatDetails: threatDetails
-    }).then(allowed => {
-      try {
-        callback(allowed);
-      } catch (callbackError) {
-        console.error('OriginalUI: Error in navigation modal callback:', callbackError);
-      }
-    }).catch(error => {
-      console.error('OriginalUI: Modal error:', error);
-      try {
-        callback(false); // Default to deny for safety
-      } catch (callbackError) {
-        console.error('OriginalUI: Error in fallback callback:', callbackError);
-      }
-    });
+    this.modalManager
+      .showConfirmationModal({
+        url: targetURL,
+        threatDetails: threatDetails,
+      })
+      .then((allowed) => {
+        this.safeInvokeCallback(callback, allowed);
+      })
+      .catch((error) => {
+        console.error("OriginalUI: Modal error:", error);
+        this.safeInvokeCallback(callback, false); // Default to deny for safety
+      });
+  }
+
+  /**
+   * Safely invoke callback with error handling
+   * @param {Function} callback - Callback function to invoke
+   * @param {boolean} allowed - User decision
+   * @private
+   */
+  safeInvokeCallback(callback, allowed) {
+    try {
+      callback(allowed);
+    } catch (error) {
+      console.error("OriginalUI: Error invoking navigation callback:", error);
+    }
   }
 
   /**
@@ -447,25 +503,27 @@ export class NavigationGuardian extends CleanableModule {
     try {
       // Validate Chrome extension context before using Chrome APIs
       if (!isExtensionContextValid()) {
-        console.warn('OriginalUI: Chrome extension context invalid, skipping script injection');
+        console.warn(
+          "OriginalUI: Chrome extension context invalid, skipping script injection"
+        );
         return;
       }
 
-      const script = document.createElement('script');
-      
+      const script = document.createElement("script");
+
       // Safe Chrome API call with context validation
       try {
-        script.src = chrome.runtime.getURL('scripts/injected-script.js');
+        script.src = chrome.runtime.getURL("scripts/injected-script.js");
       } catch (apiError) {
-        console.error('OriginalUI: Chrome API call failed:', apiError);
+        console.error("OriginalUI: Chrome API call failed:", apiError);
         return;
       }
-      
+
       script.onload = () => script.remove();
       (document.head || document.documentElement).appendChild(script);
-      console.log('OriginalUI: Navigation Guardian injected script loaded');
+      console.log("OriginalUI: Navigation Guardian injected script loaded");
     } catch (error) {
-      console.error('OriginalUI: Failed to inject navigation script:', error);
+      console.error("OriginalUI: Failed to inject navigation script:", error);
     }
   }
 
@@ -477,7 +535,10 @@ export class NavigationGuardian extends CleanableModule {
       // Use safe storage API with context validation and retry logic
       await safeStorageSet({ navigationStats: this.navigationStats });
     } catch (error) {
-      console.error('OriginalUI: Failed to update navigation statistics:', error);
+      console.error(
+        "OriginalUI: Failed to update navigation statistics:",
+        error
+      );
       // Non-critical failure, continue operation
     }
   }
@@ -489,12 +550,12 @@ export class NavigationGuardian extends CleanableModule {
    */
   isCrossOrigin(url) {
     if (!url) return false;
-    
+
     // Ignore special protocols and hash links
     if (/^(javascript|mailto|tel|data|blob|about):|^#/.test(url)) {
       return false;
     }
-    
+
     try {
       const targetUrl = new URL(url, window.location.href);
       return targetUrl.hostname !== window.location.hostname;
@@ -510,7 +571,7 @@ export class NavigationGuardian extends CleanableModule {
    */
   isNavigationTrusted(url) {
     if (!url) return false;
-    
+
     try {
       const targetUrl = new URL(url, window.location.href);
       return this.isDomainWhitelisted(targetUrl.hostname);
@@ -529,7 +590,9 @@ export class NavigationGuardian extends CleanableModule {
       return this.whitelistCache.result;
     }
 
-    const result = this.whitelist.some(whitelistedDomain => this.domainMatches(domain, whitelistedDomain));
+    const result = this.whitelist.some((whitelistedDomain) =>
+      this.domainMatches(domain, whitelistedDomain)
+    );
     this.whitelistCache = { domain, result };
     return result;
   }
@@ -542,13 +605,13 @@ export class NavigationGuardian extends CleanableModule {
    */
   domainMatches(domain, pattern) {
     // If pattern has wildcard prefix (*.example.com)
-    if (pattern.startsWith('*.')) {
+    if (pattern.startsWith("*.")) {
       const baseDomain = pattern.slice(2);
-      return domain === baseDomain || domain.endsWith('.' + baseDomain);
+      return domain === baseDomain || domain.endsWith("." + baseDomain);
     }
 
     // Exact match or subdomain match
-    return domain === pattern || domain.endsWith('.' + pattern);
+    return domain === pattern || domain.endsWith("." + pattern);
   }
 
   /**
@@ -559,7 +622,7 @@ export class NavigationGuardian extends CleanableModule {
     try {
       return new URL(window.location.href).hostname;
     } catch (error) {
-      return '';
+      return "";
     }
   }
 
@@ -612,24 +675,27 @@ export class NavigationGuardian extends CleanableModule {
    * Enhanced cleanup with comprehensive resource management
    */
   cleanup() {
-    console.log('OriginalUI: Starting NavigationGuardian cleanup...');
-    
+    console.log("OriginalUI: Starting NavigationGuardian cleanup...");
+
     // Set cleanup phase
     this.setLifecyclePhase(LIFECYCLE_PHASES.CLEANUP_PENDING);
-    
+
     try {
       this.isEnabled = false;
-      
+
       // Stop modal cache cleanup timer
       this.stopModalCacheCleanup();
-      
+
       // Cleanup extracted modules
-      if (this.modalManager && typeof this.modalManager.cleanup === 'function') {
+      if (
+        this.modalManager &&
+        typeof this.modalManager.cleanup === "function"
+      ) {
         this.modalManager.cleanup();
       }
-      
+
       // SecurityValidator is stateless, no cleanup needed
-      
+
       // Remove all tracked event listeners
       let removedListeners = 0;
       this.eventListeners.forEach(({ element, type, handler, options }) => {
@@ -637,44 +703,49 @@ export class NavigationGuardian extends CleanableModule {
           element.removeEventListener(type, handler, options);
           removedListeners++;
         } catch (error) {
-          console.warn(`OriginalUI: Error removing NavigationGuardian ${type} listener:`, error);
+          console.warn(
+            `OriginalUI: Error removing NavigationGuardian ${type} listener:`,
+            error
+          );
         }
       });
-      
+
       // Clear the listeners array
       this.eventListeners = [];
-      
+
       // Get final cache stats before cleanup
       const finalCacheStats = this.getModalCacheStats();
-      
+
       // Clear pending modals
       const pendingModalCount = this.pendingModalKeys.size;
       this.pendingModalKeys.clear();
       this.modalCacheStats.currentPending = 0;
-      
+
       // Clear cache
       this.whitelistCache = null;
-      
+
       // Reset stats
       this.navigationStats = { blockedCount: 0, allowedCount: 0 };
-      
+
       // Call parent cleanup
       super.cleanup();
-      
-      console.log('OriginalUI: NavigationGuardian cleanup completed:', {
+
+      console.log("OriginalUI: NavigationGuardian cleanup completed:", {
         removedListeners,
         clearedPendingModals: pendingModalCount,
         finalCacheStats,
-        lifecyclePhase: this.getLifecyclePhase()
+        lifecyclePhase: this.getLifecyclePhase(),
       });
-      
     } catch (error) {
-      console.error('OriginalUI: Error during NavigationGuardian cleanup:', error);
+      console.error(
+        "OriginalUI: Error during NavigationGuardian cleanup:",
+        error
+      );
       this.setLifecyclePhase(LIFECYCLE_PHASES.ERROR);
       throw error;
     }
   }
-  
+
   /**
    * Get comprehensive statistics including cache performance
    * @returns {object} Enhanced statistics
@@ -686,18 +757,18 @@ export class NavigationGuardian extends CleanableModule {
       lifecycle: this.getLifecycleStats(),
       eventListeners: {
         registered: this.eventListeners.length,
-        types: [...new Set(this.eventListeners.map(l => l.type))]
+        types: [...new Set(this.eventListeners.map((l) => l.type))],
       },
       whitelist: {
         size: this.whitelist.length,
-        cacheHit: this.whitelistCache !== null
+        cacheHit: this.whitelistCache !== null,
       },
       performance: {
-        memoryUsage: this.estimateMemoryUsage()
-      }
+        memoryUsage: this.estimateMemoryUsage(),
+      },
     };
   }
-  
+
   /**
    * Estimate memory usage of NavigationGuardian
    * @returns {object} Memory usage estimate
@@ -708,15 +779,18 @@ export class NavigationGuardian extends CleanableModule {
       pendingModals: this.pendingModalKeys.size * 200,
       whitelist: this.whitelist.length * 50,
       modules: 1000, // SecurityValidator + ModalManager overhead
-      stats: 500 // static overhead
+      stats: 500, // static overhead
     };
-    
-    const total = Object.values(estimatedBytes).reduce((sum, bytes) => sum + bytes, 0);
-    
+
+    const total = Object.values(estimatedBytes).reduce(
+      (sum, bytes) => sum + bytes,
+      0
+    );
+
     return {
       breakdown: estimatedBytes,
       totalBytes: total,
-      totalKB: (total / 1024).toFixed(2)
+      totalKB: (total / 1024).toFixed(2),
     };
   }
 
@@ -727,14 +801,14 @@ export class NavigationGuardian extends CleanableModule {
     if (this.modalCleanupTimer) {
       return;
     }
-    
+
     this.modalCleanupTimer = setInterval(() => {
       this.cleanupExpiredModals();
     }, 10000); // Check every 10 seconds
-    
-    console.log('OriginalUI: Started modal cache cleanup timer');
+
+    console.log("OriginalUI: Started modal cache cleanup timer");
   }
-  
+
   /**
    * Stop modal cache cleanup timer
    */
@@ -742,17 +816,17 @@ export class NavigationGuardian extends CleanableModule {
     if (this.modalCleanupTimer) {
       clearInterval(this.modalCleanupTimer);
       this.modalCleanupTimer = null;
-      console.log('OriginalUI: Stopped modal cache cleanup timer');
+      console.log("OriginalUI: Stopped modal cache cleanup timer");
     }
   }
-  
+
   /**
    * Clean up expired modals from cache
    */
   cleanupExpiredModals() {
     const now = Date.now();
     let removedCount = 0;
-    
+
     for (const [messageId, modalInfo] of this.pendingModalKeys) {
       if (now - modalInfo.timestamp > this.modalCacheTimeout) {
         this.pendingModalKeys.delete(messageId);
@@ -761,38 +835,42 @@ export class NavigationGuardian extends CleanableModule {
         this.modalCacheStats.totalCleaned++;
       }
     }
-    
+
     if (removedCount > 0) {
-      console.log(`OriginalUI: Cleaned up ${removedCount} expired pending modals`);
+      console.log(
+        `OriginalUI: Cleaned up ${removedCount} expired pending modals`
+      );
     }
   }
-  
+
   /**
    * Enforce limits on pending modal cache using LRU eviction with timestamp-based cleanup
    */
   enforcePendingModalLimits() {
     // First, clean up expired modals
     this.cleanupExpiredModals();
-    
+
     if (this.pendingModalKeys.size > this.maxModalCache) {
       // Convert to array with timestamps and sort by age
       const entries = Array.from(this.pendingModalKeys.entries())
         .map(([key, value]) => ({ key, timestamp: value.timestamp }))
         .sort((a, b) => a.timestamp - b.timestamp);
-      
+
       const excessCount = this.pendingModalKeys.size - this.maxModalCache;
       const toRemove = entries.slice(0, excessCount);
-      
+
       for (const { key } of toRemove) {
         this.pendingModalKeys.delete(key);
         this.modalCacheStats.currentPending--;
         this.modalCacheStats.totalCleaned++;
       }
-      
-      console.log(`OriginalUI: NavigationGuardian cache limit enforcement - removed ${toRemove.length} oldest entries`);
+
+      console.log(
+        `OriginalUI: NavigationGuardian cache limit enforcement - removed ${toRemove.length} oldest entries`
+      );
     }
   }
-  
+
   /**
    * Get modal cache statistics
    * @returns {object} Cache statistics
@@ -802,29 +880,31 @@ export class NavigationGuardian extends CleanableModule {
       ...this.modalCacheStats,
       cacheSize: this.pendingModalKeys.size,
       cacheLimit: this.maxModalCache,
-      cacheUtilization: (this.pendingModalKeys.size / this.maxModalCache * 100).toFixed(1) + '%',
+      cacheUtilization:
+        ((this.pendingModalKeys.size / this.maxModalCache) * 100).toFixed(1) +
+        "%",
       averageModalLifetime: this.calculateAverageModalLifetime(),
-      expiredModalsLastCleanup: this.getExpiredModalCount()
+      expiredModalsLastCleanup: this.getExpiredModalCount(),
     };
   }
-  
+
   /**
    * Calculate average lifetime of modals in cache
    * @returns {number} Average lifetime in milliseconds
    */
   calculateAverageModalLifetime() {
     if (this.pendingModalKeys.size === 0) return 0;
-    
+
     const now = Date.now();
     let totalLifetime = 0;
-    
+
     for (const modalInfo of this.pendingModalKeys.values()) {
-      totalLifetime += (now - modalInfo.timestamp);
+      totalLifetime += now - modalInfo.timestamp;
     }
-    
+
     return Math.round(totalLifetime / this.pendingModalKeys.size);
   }
-  
+
   /**
    * Get count of expired modals in cache
    * @returns {number} Number of expired modals
@@ -832,13 +912,13 @@ export class NavigationGuardian extends CleanableModule {
   getExpiredModalCount() {
     const now = Date.now();
     let expiredCount = 0;
-    
+
     for (const modalInfo of this.pendingModalKeys.values()) {
       if (now - modalInfo.timestamp > this.modalCacheTimeout) {
         expiredCount++;
       }
     }
-    
+
     return expiredCount;
   }
 }
