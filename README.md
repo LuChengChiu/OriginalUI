@@ -224,7 +224,6 @@ Each protection module operates independently with well-defined interfaces:
 - **NavigationGuardian** - Cross-origin navigation interception with user confirmation
 - **ClickHijackingProtector** - Click analysis and overlay detection
 - **ElementRemover** - DOM manipulation with multiple strategies
-- **MemoryMonitor** - Memory leak detection and monitoring
 - **RequestBlockingProtector** - Request interception and blocking
 
 ### Data Flow

@@ -249,7 +249,6 @@ src/scripts/
 │   │   └── NavigationGuardian.original.js // Original monolithic version (backup)
 │   ├── ClickHijackingProtector.js     // Click analysis and overlay detection
 │   ├── ElementRemover.js              // DOM manipulation strategies
-│   ├── MemoryMonitor.js               // Memory leak detection and monitoring
 │   ├── RequestBlockingProtector.js    // Request interception and blocking
 │   └── ICleanable.js                  // Cleanup interface and registry for memory leak prevention
 ├── utils/
@@ -307,7 +306,6 @@ NavigationGuardian has been refactored from a monolithic 1100+ line module into 
 - **Time-Slicing**: Non-blocking execution that respects frame budgets
 - **Chrome API Safety**: Robust Chrome storage operations with retry mechanisms and context validation
 - **Debounced Operations**: Reduced API call frequency through intelligent debouncing
-- **MemoryMonitor**: Continuous memory leak detection with automatic garbage collection recommendations
 - **Sequential Pattern Detection**: Simple, efficient element analysis using AdDetectionEngine
 
 **Testing Extension:**

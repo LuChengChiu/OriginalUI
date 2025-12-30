@@ -40,7 +40,6 @@ graph TB
         Mutation[MutationProtector<br/>DOM monitoring]
         ElementRem[ElementRemover<br/>CSS selector removal]
         AdEngine[AdDetectionEngine<br/>Pattern detection]
-        Memory[MemoryMonitor<br/>Leak detection]
     end
 
     subgraph "Data & Storage"
@@ -189,11 +188,9 @@ flowchart TD
 
     InitialScan --> ExecuteRules[Execute Rules<br/>- Default rules<br/>- Custom rules<br/>- Pattern detection]
 
-    ExecuteRules --> StartMemory[Start MemoryMonitor<br/>5-minute intervals]
+    ExecuteRules --> Running[Protection Systems Running]
 
-    StartMemory --> Running[Protection Systems Running]
-
-    Running --> Monitor[Continuous Monitoring<br/>- Scripts<br/>- Navigation<br/>- Clicks<br/>- DOM mutations<br/>- Memory]
+    Running --> Monitor[Continuous Monitoring<br/>- Scripts<br/>- Navigation<br/>- Clicks<br/>- DOM mutations]
 
     OnlyListeners --> Waiting[Waiting for<br/>Settings Changes]
 
@@ -241,11 +238,10 @@ flowchart TD
 20. Start `MutationProtector` with callback
 21. Perform initial threat scan
 22. Execute all enabled rules (default, custom, pattern)
-23. Start `MemoryMonitor` for leak detection
 
 **Runtime:**
-24. Protection systems continuously monitor the page
-25. Settings changes trigger re-initialization
+23. Protection systems continuously monitor the page
+24. Settings changes trigger re-initialization
 
 ---
 
@@ -359,9 +355,9 @@ This flowchart shows how OriginalUIController coordinates all protection modules
 flowchart TD
     Start([Content Script Loaded]) --> CreateRegistry[Create CleanupRegistry<br/>Max 20 modules per compartment<br/>5-minute TTL]
 
-    CreateRegistry --> InstantiateModules[Instantiate All Modules<br/>- MemoryMonitor<br/>- ScriptAnalyzer<br/>- NavigationGuardian<br/>- ClickHijackingProtector<br/>- MutationProtector<br/>- AdDetectionEngine]
+    CreateRegistry --> InstantiateModules[Instantiate All Modules<br/>- ScriptAnalyzer<br/>- NavigationGuardian<br/>- ClickHijackingProtector<br/>- MutationProtector<br/>- AdDetectionEngine]
 
-    InstantiateModules --> RegisterModules[Register Modules by Compartment<br/>- monitoring: MemoryMonitor<br/>- analysis: ScriptAnalyzer<br/>- protection: NavGuard, ClickProtect, Mutation]
+    InstantiateModules --> RegisterModules[Register Modules by Compartment<br/>- analysis: ScriptAnalyzer<br/>- protection: NavGuard, ClickProtect, Mutation]
 
     RegisterModules --> Initialize[controller.initialize]
 
@@ -414,9 +410,7 @@ flowchart TD
 
     PatternRules --> UpdateStats[Update Domain Stats<br/>Save to storage]
 
-    UpdateStats --> StartMemory[MemoryMonitor.startMonitoring<br/>5-minute interval checks]
-
-    StartMemory --> Running[All Protection Systems Running]
+    UpdateStats --> Running[All Protection Systems Running]
 
     Running --> MonitorLoop[Continuous Monitoring Loop]
 
@@ -475,7 +469,6 @@ flowchart TD
 4. **MutationProtector** (4th) - Monitor ongoing DOM changes
 5. **ElementRemover** (via executeRules) - Remove unwanted elements
 6. **AdDetectionEngine** (via executeRules) - Pattern-based detection
-7. **MemoryMonitor** (last) - Start periodic memory checks
 
 **Event-Driven Communication:**
 - `MutationProtector` detects click-hijacking iframe → fires `onClickHijackingDetected`
