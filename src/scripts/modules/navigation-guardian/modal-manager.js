@@ -1,10 +1,10 @@
 /**
  * ModalManager Module - UI modal handling for NavigationGuardian
- * 
+ *
  * @fileoverview Provides comprehensive modal UI creation and management including XSS-safe element
  * creation, user interaction handling, keyboard shortcuts, and proper cleanup lifecycle management.
  * This module handles all user interface aspects of navigation confirmation modals.
- * 
+ *
  * @example
  * // Basic modal usage
  * const modalManager = new ModalManager();
@@ -12,22 +12,21 @@
  *   url: 'https://example.com',
  *   threatDetails: { riskScore: 5, threats: [...] }
  * });
- * 
+ *
  * @example
  * // Safe element creation
  * const button = modalManager.createSafeElement('button', {
  *   textContent: 'Click me',
  *   style: 'background: blue; color: white;'
  * });
- * 
+ *
  * @module ModalManager
  * @extends CleanableModule
  * @since 1.0.0
  * @author OriginalUI Team
  */
 
-import { MAX_Z_INDEX } from '../../constants.js';
-import { showExternalLinkModal } from '../../../components/external-link-modal.jsx';
+import { showExternalLinkModal } from "../../../components/external-link-modal.jsx";
 
 /**
  * ModalManager class providing modal UI creation and lifecycle management
@@ -45,7 +44,7 @@ export class ModalManager {
      * @private
      */
     this.activeModal = null;
-    
+
     /**
     
     /**
@@ -54,15 +53,15 @@ export class ModalManager {
      * @private
      */
     this.statisticsCallback = null;
-    
+
     /**
      * URL security validator callback
      * @type {Function|null}
      * @private
      */
     this.urlValidator = null;
-    
-    console.log('OriginalUI: ModalManager initialized');
+
+    console.log("OriginalUI: ModalManager initialized");
   }
 
   /**
@@ -113,7 +112,7 @@ export class ModalManager {
 
     // Append children
     if (options.children) {
-      options.children.forEach(child => {
+      options.children.forEach((child) => {
         if (child) element.appendChild(child);
       });
     }
@@ -133,11 +132,13 @@ export class ModalManager {
    */
   showConfirmationModal(config) {
     const { url: targetURL, threatDetails = null } = config;
-    
+
     return new Promise(async (resolve) => {
       // Prevent multiple modals for the same URL
       if (this.activeModal) {
-        console.warn('OriginalUI: Navigation modal already exists, ignoring duplicate');
+        console.warn(
+          "OriginalUI: Navigation modal already exists, ignoring duplicate"
+        );
         resolve(false); // Default to deny for safety
         return;
       }
@@ -148,7 +149,10 @@ export class ModalManager {
         try {
           validatedURL = this.urlValidator(targetURL);
         } catch (validatorError) {
-          console.error('OriginalUI: Error in URL validator callback:', validatorError);
+          console.error(
+            "OriginalUI: Error in URL validator callback:",
+            validatorError
+          );
           // Use original URL as fallback - validation errors shouldn't break modal display
           validatedURL = targetURL;
         }
@@ -157,54 +161,49 @@ export class ModalManager {
       // Prepare config for React modal
       const modalConfig = {
         url: validatedURL,
-        threatDetails: threatDetails
+        threatDetails: threatDetails,
       };
 
       try {
         // Set active modal flag
         this.activeModal = true;
-        
+
         // Show React modal and await user decision
         const userDecision = await showExternalLinkModal(modalConfig);
-        
+
         // Clear active modal flag
         this.activeModal = null;
-        
+
         // Call statistics callback
         if (this.statisticsCallback) {
           try {
             this.statisticsCallback(userDecision);
           } catch (callbackError) {
-            console.error('OriginalUI: Error in statistics callback:', callbackError);
+            console.error(
+              "OriginalUI: Error in statistics callback:",
+              callbackError
+            );
           }
         }
-        
-        console.log('OriginalUI: Navigation Guardian modal result for', targetURL, ':', userDecision);
+
+        console.log(
+          "OriginalUI: Navigation Guardian modal result for",
+          targetURL,
+          ":",
+          userDecision
+        );
         resolve(userDecision);
-        
       } catch (error) {
-        console.error('OriginalUI: Error showing React modal:', error);
-        
+        console.error("OriginalUI: Error showing React modal:", error);
+
         // Clear active modal flag on error
         this.activeModal = null;
-        
+
         // Resolve with false (deny) for safety instead of fallback
         resolve(false);
       }
     });
   }
-
-
-
-
-
-
-
-
-
-
-
-
 
   /**
    * Legacy method for backward compatibility with NavigationGuardian
@@ -215,20 +214,23 @@ export class ModalManager {
    */
   showNavigationModal(targetURL, callback, threatDetails = null) {
     this.showConfirmationModal({ url: targetURL, threatDetails })
-      .then(allowed => {
+      .then((allowed) => {
         try {
           callback(allowed);
         } catch (callbackError) {
-          console.error('OriginalUI: Error in legacy callback:', callbackError);
+          console.error("OriginalUI: Error in legacy callback:", callbackError);
           // Callback error handling - error already logged, no further action needed
         }
       })
-      .catch(error => {
-        console.error('OriginalUI: Modal error:', error);
+      .catch((error) => {
+        console.error("OriginalUI: Modal error:", error);
         try {
           callback(false); // Default to deny for safety
         } catch (callbackError) {
-          console.error('OriginalUI: Error in legacy callback (fallback):', callbackError);
+          console.error(
+            "OriginalUI: Error in legacy callback (fallback):",
+            callbackError
+          );
         }
       });
   }
@@ -237,7 +239,7 @@ export class ModalManager {
    * Enhanced cleanup with comprehensive resource management
    */
   cleanup() {
-    console.log('OriginalUI: Starting ModalManager cleanup...');
+    console.log("OriginalUI: Starting ModalManager cleanup...");
 
     try {
       // Clear active modal flag (React modal handles its own cleanup)
@@ -247,10 +249,9 @@ export class ModalManager {
       this.statisticsCallback = null;
       this.urlValidator = null;
 
-      console.log('OriginalUI: ModalManager cleanup completed');
-
+      console.log("OriginalUI: ModalManager cleanup completed");
     } catch (error) {
-      console.error('OriginalUI: Error during ModalManager cleanup:', error);
+      console.error("OriginalUI: Error during ModalManager cleanup:", error);
       throw error;
     }
   }
