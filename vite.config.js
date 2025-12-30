@@ -41,9 +41,9 @@ const bundleContentScripts = (mode) => ({
         terserOptions: isProduction
           ? {
               compress: {
-                drop_console: true, // Remove all console.* calls
+                drop_console: false, // Keep console for debugging - extension context
                 drop_debugger: true, // Remove debugger statements
-                pure_funcs: ["console.log", "console.info", "console.debug"], // Extra safety
+                // Don't mark console.* as pure functions to prevent aggressive tree-shaking
               },
             }
           : undefined,
@@ -85,9 +85,9 @@ const bundleContentScripts = (mode) => ({
         terserOptions: isProduction
           ? {
               compress: {
-                drop_console: true,
+                drop_console: false, // Keep console for debugging - extension context
                 drop_debugger: true,
-                pure_funcs: ["console.log", "console.info", "console.debug"],
+                // Don't mark console.* as pure functions to prevent aggressive tree-shaking
               },
             }
           : undefined,
@@ -135,9 +135,9 @@ export default defineConfig(({ mode }) => ({
       mode === "production"
         ? {
             compress: {
-              drop_console: true, // Remove all console.* calls in production
+              drop_console: false, // Keep console for debugging - extension context
               drop_debugger: true, // Remove debugger statements
-              pure_funcs: ["console.log", "console.info", "console.debug"], // Extra safety
+              // Don't mark console.* as pure functions to prevent aggressive tree-shaking
             },
             format: {
               comments: false, // Remove comments in production

@@ -302,6 +302,12 @@ chrome.runtime.onInstalled.addListener(async () => {
     delayInMinutes: 1440,       // 24 hours
     periodInMinutes: 1440
   });
+
+  // NEW: Weekly EasyList DOM rules updates (7 days = 10080 minutes)
+  chrome.alarms.create("updateEasyListDomRules", {
+    delayInMinutes: 10080,      // 7 days
+    periodInMinutes: 10080
+  });
 });
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
@@ -362,6 +368,19 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
       await defaultBlockManager.updateAll();
     } catch (error) {
       console.error('OriginalUI: Failed to update default blocks:', error);
+    }
+  }
+
+  // NEW: Weekly EasyList DOM rules cache refresh
+  if (alarm.name === "updateEasyListDomRules") {
+    try {
+      console.log('🔄 Running weekly EasyList DOM rules update...');
+      const { EasyListDomSource } = await import('./modules/rule-execution/sources/easylist-dom-source.js');
+      const source = new EasyListDomSource();
+      await source.fetchRules(); // Force refresh from network
+      console.log('✅ EasyList DOM rules cache refreshed');
+    } catch (error) {
+      console.error('OriginalUI: Failed to update EasyList DOM rules:', error);
     }
   }
 });

@@ -137,11 +137,22 @@ describe('NetworkBlockManager', () => {
       expect(results[1].source).toBe('Source 2');
     });
 
-    test('should handle source update failures gracefully', async () => {
+    test('should throw error when source fetch fails in Phase 1', async () => {
+      // Note: The implementation fetches ALL sources first (Phase 1) before processing.
+      // Errors in Phase 1 propagate up; error handling is only in Phase 3 (processing).
+      mockSources[0].fetchRules.mockRejectedValue(new Error('Network error'));
+
+      await expect(manager.updateAll()).rejects.toThrow('Network error');
+    });
+
+    test('should handle processing errors gracefully in Phase 3', async () => {
+      // Errors during the conversion/update phase (Phase 3) are caught
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-      mockSources[0].fetchRules.mockRejectedValue(new Error('Network error'));
+      // fetchRules succeeds, but converter fails
+      mockSources[0].fetchRules.mockResolvedValue('||example.com^');
+      mockConverter.convert.mockRejectedValue(new Error('Conversion error'));
 
       const results = await manager.updateAll();
 
@@ -149,14 +160,14 @@ describe('NetworkBlockManager', () => {
       expect(results[0]).toMatchObject({
         source: 'Test Source',
         success: false,
-        error: 'Network error'
+        error: 'Conversion error'
       });
 
       consoleErrorSpy.mockRestore();
       consoleLogSpy.mockRestore();
     });
 
-    test('should continue updating remaining sources on error', async () => {
+    test('should throw error when any source fails during fetch phase', async () => {
       const source2 = {
         getName: vi.fn().mockReturnValue('Source 2'),
         fetchRules: vi.fn().mockResolvedValue('||test.com^'),
@@ -164,6 +175,7 @@ describe('NetworkBlockManager', () => {
         getUpdateType: vi.fn().mockReturnValue('dynamic')
       };
 
+      // First source fails during fetch
       mockSources[0].fetchRules.mockRejectedValue(new Error('Failed'));
 
       const multiManager = new NetworkBlockManager(
@@ -173,17 +185,8 @@ describe('NetworkBlockManager', () => {
         mockConverter
       );
 
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-      const results = await multiManager.updateAll();
-
-      expect(results).toHaveLength(2);
-      expect(results[0].success).toBe(false);
-      expect(results[1].success).toBe(true);
-
-      consoleErrorSpy.mockRestore();
-      consoleLogSpy.mockRestore();
+      // Phase 1 errors propagate - the whole updateAll() throws
+      await expect(multiManager.updateAll()).rejects.toThrow('Failed');
     });
 
     test('should return empty array when no dynamic sources', async () => {

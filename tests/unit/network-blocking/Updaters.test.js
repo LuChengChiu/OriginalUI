@@ -5,7 +5,6 @@
 
 import { describe, test, expect, beforeEach, vi } from 'vitest';
 import { DynamicRuleUpdater } from '@/scripts/modules/network-blocking/updaters/dynamic-rule-updater.js';
-import { StaticRuleBuilder } from '@/scripts/modules/network-blocking/updaters/static-rule-builder.js';
 
 // Mock Chrome API
 global.chrome = {
@@ -18,15 +17,16 @@ global.chrome = {
   }
 };
 
-// Mock fs/promises for StaticRuleBuilder
-vi.mock('fs/promises', () => ({
-  default: {
-    mkdir: vi.fn(),
-    writeFile: vi.fn()
-  },
-  mkdir: vi.fn(),
-  writeFile: vi.fn()
-}));
+// Mock fs/promises with inline mock functions (hoisting-safe)
+vi.mock('fs/promises', () => {
+  const mkdir = vi.fn();
+  const writeFile = vi.fn();
+  return {
+    default: { mkdir, writeFile },
+    mkdir,
+    writeFile
+  };
+});
 
 // Mock path
 vi.mock('path', () => ({
@@ -37,6 +37,14 @@ vi.mock('path', () => ({
   join: (...args) => args.join('/'),
   dirname: (path) => path.split('/').slice(0, -1).join('/')
 }));
+
+// Import StaticRuleBuilder after mocks are set up
+import { StaticRuleBuilder } from '@/scripts/modules/network-blocking/updaters/static-rule-builder.js';
+
+// Get references to mocked functions for assertions
+import fs from 'fs/promises';
+const mockMkdir = fs.mkdir;
+const mockWriteFile = fs.writeFile;
 
 describe('DynamicRuleUpdater', () => {
   let updater;
@@ -183,15 +191,14 @@ describe('StaticRuleBuilder', () => {
 
   describe('build()', () => {
     test('should create output directory', async () => {
-      const { mkdir, writeFile } = await import('fs/promises');
       const rules = [{ id: 1 }, { id: 2 }];
 
-      mkdir.mockResolvedValue();
-      writeFile.mockResolvedValue();
+      mockMkdir.mockResolvedValue();
+      mockWriteFile.mockResolvedValue();
 
       await builder.build(rules);
 
-      expect(mkdir).toHaveBeenCalledWith('output/rulesets', { recursive: true });
+      expect(mockMkdir).toHaveBeenCalledWith('output/rulesets', { recursive: true });
     });
 
     test('should write ruleset file', async () => {
@@ -199,12 +206,12 @@ describe('StaticRuleBuilder', () => {
         { id: 1, action: { type: 'block' }, condition: { urlFilter: '*://ad.com/*' } }
       ];
 
-      fs.mkdir.mockResolvedValue();
-      fs.writeFile.mockResolvedValue();
+      mockMkdir.mockResolvedValue();
+      mockWriteFile.mockResolvedValue();
 
       await builder.build(rules);
 
-      expect(fs.writeFile).toHaveBeenCalledWith(
+      expect(mockWriteFile).toHaveBeenCalledWith(
         'output/rulesets/easylist-adservers.json',
         expect.stringContaining('"id": 1')
       );
@@ -213,12 +220,12 @@ describe('StaticRuleBuilder', () => {
     test('should format JSON with 2-space indentation', async () => {
       const rules = [{ id: 1 }];
 
-      fs.mkdir.mockResolvedValue();
-      fs.writeFile.mockResolvedValue();
+      mockMkdir.mockResolvedValue();
+      mockWriteFile.mockResolvedValue();
 
       await builder.build(rules);
 
-      const writeCall = fs.writeFile.mock.calls.find(
+      const writeCall = mockWriteFile.mock.calls.find(
         call => call[0].includes('easylist-adservers.json')
       );
       const json = writeCall[1];
@@ -235,12 +242,12 @@ describe('StaticRuleBuilder', () => {
         ruleCount: 47007
       };
 
-      fs.mkdir.mockResolvedValue();
-      fs.writeFile.mockResolvedValue();
+      mockMkdir.mockResolvedValue();
+      mockWriteFile.mockResolvedValue();
 
       await builder.build(rules, metadata);
 
-      expect(fs.writeFile).toHaveBeenCalledWith(
+      expect(mockWriteFile).toHaveBeenCalledWith(
         expect.stringContaining('metadata.json'),
         expect.stringContaining('"source": "EasyList Adservers"')
       );
@@ -249,12 +256,12 @@ describe('StaticRuleBuilder', () => {
     test('should include generatedAt timestamp in metadata', async () => {
       const rules = [{ id: 1 }];
 
-      fs.mkdir.mockResolvedValue();
-      fs.writeFile.mockResolvedValue();
+      mockMkdir.mockResolvedValue();
+      mockWriteFile.mockResolvedValue();
 
       await builder.build(rules, {});
 
-      const metadataCall = fs.writeFile.mock.calls.find(
+      const metadataCall = mockWriteFile.mock.calls.find(
         call => call[0].includes('metadata.json')
       );
       const metadataJson = JSON.parse(metadataCall[1]);
@@ -266,12 +273,12 @@ describe('StaticRuleBuilder', () => {
     test('should include ruleCount in metadata', async () => {
       const rules = [{ id: 1 }, { id: 2 }];
 
-      fs.mkdir.mockResolvedValue();
-      fs.writeFile.mockResolvedValue();
+      mockMkdir.mockResolvedValue();
+      mockWriteFile.mockResolvedValue();
 
       await builder.build(rules, { source: 'Test' });
 
-      const metadataCall = fs.writeFile.mock.calls.find(
+      const metadataCall = mockWriteFile.mock.calls.find(
         call => call[0].includes('metadata.json')
       );
       const metadataJson = JSON.parse(metadataCall[1]);
@@ -283,8 +290,8 @@ describe('StaticRuleBuilder', () => {
       const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const rules = [{ id: 1 }, { id: 2 }, { id: 3 }];
 
-      fs.mkdir.mockResolvedValue();
-      fs.writeFile.mockResolvedValue();
+      mockMkdir.mockResolvedValue();
+      mockWriteFile.mockResolvedValue();
 
       await builder.build(rules);
 
@@ -298,12 +305,12 @@ describe('StaticRuleBuilder', () => {
     test('should handle large rulesets', async () => {
       const rules = Array(47007).fill(null).map((_, i) => ({ id: i + 1 }));
 
-      fs.mkdir.mockResolvedValue();
-      fs.writeFile.mockResolvedValue();
+      mockMkdir.mockResolvedValue();
+      mockWriteFile.mockResolvedValue();
 
       await builder.build(rules, { source: 'EasyList' });
 
-      const rulesetCall = fs.writeFile.mock.calls.find(
+      const rulesetCall = mockWriteFile.mock.calls.find(
         call => call[0].includes('easylist-adservers.json')
       );
       const json = JSON.parse(rulesetCall[1]);
@@ -314,8 +321,8 @@ describe('StaticRuleBuilder', () => {
     test('should handle file system errors', async () => {
       const rules = [{ id: 1 }];
 
-      fs.mkdir.mockResolvedValue();
-      fs.writeFile.mockRejectedValue(new Error('Permission denied'));
+      mockMkdir.mockResolvedValue();
+      mockWriteFile.mockRejectedValue(new Error('Permission denied'));
 
       await expect(builder.build(rules)).rejects.toThrow('Permission denied');
     });
@@ -323,18 +330,18 @@ describe('StaticRuleBuilder', () => {
     test('should handle mkdir errors', async () => {
       const rules = [{ id: 1 }];
 
-      fs.mkdir.mockRejectedValue(new Error('Cannot create directory'));
+      mockMkdir.mockRejectedValue(new Error('Cannot create directory'));
 
       await expect(builder.build(rules)).rejects.toThrow('Cannot create directory');
     });
 
     test('should handle empty rules array', async () => {
-      fs.mkdir.mockResolvedValue();
-      fs.writeFile.mockResolvedValue();
+      mockMkdir.mockResolvedValue();
+      mockWriteFile.mockResolvedValue();
 
       await builder.build([]);
 
-      const rulesetCall = fs.writeFile.mock.calls.find(
+      const rulesetCall = mockWriteFile.mock.calls.find(
         call => call[0].includes('easylist-adservers.json')
       );
       expect(rulesetCall[1]).toBe('[]');
@@ -348,12 +355,12 @@ describe('StaticRuleBuilder', () => {
         nested: { data: 'test' }
       };
 
-      fs.mkdir.mockResolvedValue();
-      fs.writeFile.mockResolvedValue();
+      mockMkdir.mockResolvedValue();
+      mockWriteFile.mockResolvedValue();
 
       await builder.build(rules, metadata);
 
-      const metadataCall = fs.writeFile.mock.calls.find(
+      const metadataCall = mockWriteFile.mock.calls.find(
         call => call[0].includes('metadata.json')
       );
       const metadataJson = JSON.parse(metadataCall[1]);

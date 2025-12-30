@@ -1,6 +1,5 @@
 export default {
-  testEnvironment: 'jsdom',
-  setupFilesAfterEnv: ['<rootDir>/test/setup-jest.js'],
+  testEnvironment: 'node',
   transform: {
     '^.+\\.js$': 'babel-jest',
   },
@@ -14,7 +13,7 @@ export default {
     '!src/data/**',
     '!src/scripts/injected-script.js'
   ],
-  moduleNameMapping: {
+  moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     '^@test/(.*)$': '<rootDir>/test/$1',
     '^@modules/(.*)$': '<rootDir>/src/scripts/modules/$1',

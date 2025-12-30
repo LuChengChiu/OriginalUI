@@ -4,13 +4,14 @@
  */
 
 // Import modules
+import { domainMatches } from "../utils/domainMatch.js";
 import AdDetectionEngine from "./adDetectionEngine.js";
 import { ClickHijackingProtector } from "./modules/ClickHijackingProtector.js";
 import { ElementRemover } from "./modules/ElementRemover.js";
 import { CleanupRegistry } from "./modules/ICleanable.js";
-import { MemoryMonitor } from "./modules/MemoryMonitor.js";
 import { ScriptAnalyzer } from "./modules/ScriptAnalyzer.js";
 import { NavigationGuardian } from "./modules/navigation-guardian/navigation-guardian.js";
+import { createRuleExecutionSystem } from "./modules/rule-execution/config/sources.config.js";
 import {
   debouncedStorageSet,
   isExtensionContextValid,
@@ -41,18 +42,6 @@ class OriginalUIController {
       compartmentTTL: 300000, // 5 minutes
       enablePeriodicCleanup: true,
     });
-
-    // Memory monitoring for leak detection and verification
-    this.memoryMonitor = new MemoryMonitor({
-      monitoringInterval: 30000, // 30 seconds
-      memoryThreshold: 50 * 1024 * 1024, // 50MB
-      enablePerformanceMarking: true,
-    });
-    this.cleanupRegistry.register(
-      this.memoryMonitor,
-      "MemoryMonitor",
-      "monitoring"
-    );
 
     // Protection modules with compartmentalization
 
@@ -85,6 +74,9 @@ class OriginalUIController {
     this.domainStats = {};
     this.adDetectionEngine = null;
 
+    // Rule execution system (initialized in initialize())
+    this.ruleExecutionManager = null;
+
     console.log(
       "OriginalUI: Controller initialized for domain:",
       this.currentDomain
@@ -113,6 +105,10 @@ class OriginalUIController {
     this.adDetectionEngine = new AdDetectionEngine();
     console.log("OriginalUI: AdDetectionEngine initialized");
 
+    // 3.5. Initialize Rule Execution System
+    this.ruleExecutionManager = await createRuleExecutionSystem();
+    console.log("OriginalUI: Rule Execution System initialized");
+
     // 4. Check whitelist/active state BEFORE applying security protections
     if (!this.isActive || this.isDomainWhitelisted()) {
       console.log(
@@ -135,10 +131,7 @@ class OriginalUIController {
     // 7. Start all other protection systems
     this.startProtection();
 
-    // 8. Start memory monitoring after all systems are initialized
-    this.memoryMonitor.startMonitoring(this);
-
-    console.log("OriginalUI: Initialization complete with memory monitoring");
+    console.log("OriginalUI: Initialization complete");
   }
 
   /**
@@ -190,23 +183,21 @@ class OriginalUIController {
       return;
     }
 
-    const stats = {
-      defaultRulesRemoved: 0,
-      customRulesRemoved: 0,
-      patternRulesRemoved: 0,
-    };
-
-    // Execute default rules
+    // Build list of enabled sources for rule execution manager
+    const enabledSources = [];
     if (this.defaultRulesEnabled) {
-      stats.defaultRulesRemoved = await this.executeDefaultRules();
+      enabledSources.push("default");
+      enabledSources.push("easylist"); // EasyList bundled with default rules
     }
+    if (this.customRulesEnabled) enabledSources.push("custom");
 
-    // Execute custom rules
-    if (this.customRulesEnabled) {
-      stats.customRulesRemoved = await this.executeCustomRules();
-    }
+    // Execute rules via RuleExecutionManager
+    const stats = await this.ruleExecutionManager.executeAllRules(
+      this.currentDomain,
+      { enabledSources, timeSlicing: true }
+    );
 
-    // Execute pattern-based detection
+    // Execute pattern-based detection (unchanged - handled separately)
     if (this.patternRulesEnabled && this.adDetectionEngine) {
       stats.patternRulesRemoved = await this.executePatternRules();
     }
@@ -215,7 +206,7 @@ class OriginalUIController {
     await this.updateDomainStats(stats);
 
     const totalRemoved = Object.values(stats).reduce(
-      (sum, count) => sum + count,
+      (sum, count) => sum + (typeof count === "number" ? count : 0),
       0
     );
     if (totalRemoved > 0) {
@@ -223,77 +214,9 @@ class OriginalUIController {
     }
   }
 
-  /**
-   * Execute default CSS selector rules
-   */
-  async executeDefaultRules() {
-    const enabledRules = this.defaultRules.filter((rule) => rule.enabled);
-    let removedCount = 0;
-
-    for (const rule of enabledRules) {
-      if (!this.ruleAppliesTo(rule, this.currentDomain)) continue;
-
-      try {
-        const elements = document.querySelectorAll(rule.selector);
-        const removed = ElementRemover.batchRemove(
-          Array.from(elements),
-          rule.id,
-          ElementRemover.REMOVAL_STRATEGIES.REMOVE
-        );
-
-        removedCount += removed;
-
-        if (removed > 0) {
-          console.log(
-            `OriginalUI: Default rule "${rule.description}" removed ${removed} elements`
-          );
-        }
-      } catch (error) {
-        console.error(
-          `OriginalUI: Error executing default rule "${rule.id}":`,
-          error
-        );
-      }
-    }
-
-    return removedCount;
-  }
-
-  /**
-   * Execute custom user-defined rules
-   */
-  async executeCustomRules() {
-    const enabledRules = this.customRules.filter((rule) => rule.enabled);
-    let removedCount = 0;
-
-    for (const rule of enabledRules) {
-      if (!this.ruleAppliesTo(rule, this.currentDomain)) continue;
-
-      try {
-        const elements = document.querySelectorAll(rule.selector);
-        const removed = ElementRemover.batchRemove(
-          Array.from(elements),
-          rule.id,
-          ElementRemover.REMOVAL_STRATEGIES.REMOVE
-        );
-
-        removedCount += removed;
-
-        if (removed > 0) {
-          console.log(
-            `OriginalUI: Custom rule "${rule.description}" removed ${removed} elements`
-          );
-        }
-      } catch (error) {
-        console.error(
-          `OriginalUI: Error executing custom rule "${rule.id}":`,
-          error
-        );
-      }
-    }
-
-    return removedCount;
-  }
+  // NOTE: executeDefaultRules() and executeCustomRules() have been removed
+  // They are now handled by RuleExecutionManager in rule-execution module
+  // See: src/scripts/modules/rule-execution/
 
   /**
    * Execute pattern-based detection rules
@@ -303,7 +226,7 @@ class OriginalUIController {
 
     let removedCount = 0;
     const suspiciousElements = document.querySelectorAll(
-      "div, iframe, section, aside, nav, header"
+      "div, iframe, section, aside, header"
     );
 
     if (suspiciousElements.length === 0) return 0;
@@ -413,7 +336,7 @@ class OriginalUIController {
           custom: this.customRules.length,
         },
         enabledModules: {
-          defaultRules: this.defaultRulesEnabled,
+          defaultRules: this.defaultRulesEnabled, // EasyList bundled here
           customRules: this.customRulesEnabled,
           patternRules: this.patternRulesEnabled,
           navigationGuard: this.navigationGuardEnabled,
@@ -491,7 +414,7 @@ class OriginalUIController {
       this.navigationStats = changes.navigationStats.newValue;
     }
 
-    // Handle other rule changes
+    // Handle other rule changes (EasyList is bundled with defaultRulesEnabled)
     const ruleChanges = [
       "defaultRules",
       "customRules",
@@ -528,26 +451,10 @@ class OriginalUIController {
     }
 
     const result = this.whitelist.some((domain) =>
-      this.domainMatches(this.currentDomain, domain)
+      domainMatches(this.currentDomain, domain)
     );
     this.whitelistCache = { domain: this.currentDomain, result };
     return result;
-  }
-
-  domainMatches(domain, pattern) {
-    if (pattern.startsWith("*.")) {
-      const baseDomain = pattern.slice(2);
-      return domain === baseDomain || domain.endsWith("." + baseDomain);
-    }
-    return domain === pattern || domain.endsWith("." + pattern);
-  }
-
-  ruleAppliesTo(rule, domain) {
-    if (!rule.domains?.length) return false;
-    if (rule.domains.includes("*")) return true;
-    return rule.domains.some((ruleDomain) =>
-      this.domainMatches(domain, ruleDomain)
-    );
   }
 
   invalidateWhitelistCache() {
@@ -568,14 +475,20 @@ class OriginalUIController {
       this.domainStats[this.currentDomain] = {
         defaultRulesRemoved: 0,
         customRulesRemoved: 0,
+        easylistRulesRemoved: 0,
+        easylistRulesHidden: 0,
       };
     }
 
     // Update session stats
     this.domainStats[this.currentDomain].defaultRulesRemoved =
-      stats.defaultRulesRemoved + stats.patternRulesRemoved;
+      (stats.defaultRulesRemoved || 0) + (stats.patternRulesRemoved || 0);
     this.domainStats[this.currentDomain].customRulesRemoved =
-      stats.customRulesRemoved;
+      stats.customRulesRemoved || 0;
+    this.domainStats[this.currentDomain].easylistRulesRemoved =
+      stats.easylistRulesRemoved || 0;
+    this.domainStats[this.currentDomain].easylistRulesHidden =
+      stats.easylistRulesHidden || 0;
 
     // Store in Chrome storage using debounced safe method to reduce API calls
     try {
@@ -616,24 +529,11 @@ class OriginalUIController {
   destructor() {
     console.log("OriginalUI: Starting controller destructor...");
 
-    // Take pre-cleanup memory snapshot
-    const beforeSnapshot = this.memoryMonitor.takeMemorySnapshot("cleanup");
-
     // Stop all protection systems first
     this.stopProtection();
 
     // Use cleanup registry to clean up all modules (follows Open/Closed Principle)
     const results = this.cleanupRegistry.cleanupAll();
-
-    // Take post-cleanup memory snapshot and verify effectiveness
-    const afterSnapshot = this.memoryMonitor.takeMemorySnapshot("cleanup");
-    const verificationResults = this.memoryMonitor.verifyCleanupEffectiveness(
-      beforeSnapshot,
-      afterSnapshot
-    );
-
-    // Force garbage collection to maximize cleanup effectiveness
-    this.memoryMonitor.forceGarbageCollection();
 
     // Log cleanup results for debugging
     const successful = results.filter((r) => r.success).length;
@@ -657,20 +557,19 @@ class OriginalUIController {
       this.constructor.ElementRemover.cleanup();
     }
 
+    // Clean up RuleExecutionManager
+    if (
+      this.ruleExecutionManager &&
+      typeof this.ruleExecutionManager.cleanup === "function"
+    ) {
+      this.ruleExecutionManager.cleanup();
+    }
+    this.ruleExecutionManager = null;
+
     // Note: We don't null out module references since they might still be used elsewhere
     // The cleanup registry handles the actual resource cleanup
 
-    // Log final memory report
-    const memoryReport = this.memoryMonitor.getMemoryReport();
-    console.log("OriginalUI: Final memory report:", {
-      verificationResults,
-      recommendations: memoryReport.recommendations,
-      memoryHistory: memoryReport.history.length,
-    });
-
-    console.log(
-      "OriginalUI: Controller destructor completed with verification"
-    );
+    console.log("OriginalUI: Controller destructor completed");
   }
 }
 

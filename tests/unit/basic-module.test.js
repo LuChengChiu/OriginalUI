@@ -3,6 +3,8 @@
  * Tests core modular NavigationGuardian functionality without unicode patterns
  */
 
+import { vi } from 'vitest';
+
 describe('Modular NavigationGuardian Tests', () => {
   test('should pass basic functionality test', () => {
     expect(1 + 1).toBe(2);
@@ -57,10 +59,10 @@ describe('Modular NavigationGuardian Tests', () => {
 
   test('should validate modal management functionality', () => {
     const mockModalManager = {
-      showConfirmationModal: jest.fn().mockResolvedValue(false),
-      cleanup: jest.fn(),
-      setStatisticsCallback: jest.fn(),
-      setURLValidator: jest.fn()
+      showConfirmationModal: vi.fn().mockResolvedValue(false),
+      cleanup: vi.fn(),
+      setStatisticsCallback: vi.fn(),
+      setURLValidator: vi.fn()
     };
 
     mockModalManager.setStatisticsCallback(() => {});
