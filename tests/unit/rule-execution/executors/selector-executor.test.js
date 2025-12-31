@@ -4,10 +4,10 @@
  */
 
 import { vi } from 'vitest';
-import { SelectorExecutor } from '../../../../src/scripts/modules/rule-execution/executors/selector-executor.js';
-import { ElementRemover } from '../../../../src/scripts/modules/ElementRemover.js';
+import { SelectorExecutor } from '@modules/rule-execution/executors/selector-executor.js';
+import { ElementRemover } from '@modules/element-remover.js';
 
-vi.mock('../../../../src/scripts/modules/ElementRemover.js');
+vi.mock('@modules/element-remover.js');
 
 describe('SelectorExecutor', () => {
   let executor;
