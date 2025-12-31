@@ -8,7 +8,7 @@
  */
 
 import { domainMatches } from "@utils/url-utils.js";
-import { ElementRemover } from "@modules/ElementRemover.js";
+import { ElementRemover } from "@modules/element-remover.js";
 /**
  * Executor for CSS selector-based rules
  */

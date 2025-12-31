@@ -6,7 +6,7 @@
 // Import modules
 import { domainMatches } from "@utils/url-utils.js";
 import { ClickHijackingProtector } from "./modules/ClickHijackingProtector.js";
-import { ElementRemover } from "./modules/ElementRemover.js";
+import { ElementRemover } from "./modules/element-remover.js";
 import { CleanupRegistry } from "./modules/cleanup-registry.js";
 import { NavigationGuardian } from "./modules/navigation-guardian/navigation-guardian.js";
 import { createRuleExecutionSystem } from "./modules/rule-execution/config/sources.config.js";
