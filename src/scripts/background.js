@@ -113,6 +113,22 @@ async function updateRulesetStates(enabled) {
   }
 }
 
+async function ensureAlarm(name, options) {
+  try {
+    const existing = await chrome.alarms.get(name);
+    const periodMatches = existing?.periodInMinutes === options.periodInMinutes;
+
+    if (!existing || !periodMatches) {
+      if (existing) {
+        await chrome.alarms.clear(name);
+      }
+      chrome.alarms.create(name, options);
+    }
+  } catch (error) {
+    console.error(`OriginalUI: Failed to ensure alarm ${name}:`, error);
+  }
+}
+
 // ============================================================================
 // INSTALLATION STATE MANAGEMENT
 // ============================================================================
@@ -261,17 +277,17 @@ async function _performInstallationImpl() {
     await updateRulesetStates(blockingEnabled);
 
     // STEP 6: Setup alarms (idempotent - creating existing alarms is safe)
-    chrome.alarms.create("updateDefaults", {
+    await ensureAlarm("updateDefaults", {
       delayInMinutes: 1440,
       periodInMinutes: 1440,
     });
 
-    chrome.alarms.create("updateDefaultBlocksDaily", {
+    await ensureAlarm("updateDefaultBlocksDaily", {
       delayInMinutes: 1440,
       periodInMinutes: 1440
     });
 
-    chrome.alarms.create("updateEasyListDomRules", {
+    await ensureAlarm("updateEasyListDomRules", {
       delayInMinutes: 10080,
       periodInMinutes: 10080
     });
@@ -399,7 +415,6 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === "updateEasyListDomRules") {
     try {
       console.log('🔄 Running weekly EasyList DOM rules update...');
-      const { EasyListDomSource } = await import('./modules/rule-execution/sources/easylist-dom-source.js');
       const source = new EasyListDomSource();
       await source.fetchRules(); // Force refresh from network
       console.log('✅ EasyList DOM rules cache refreshed');
@@ -727,8 +742,46 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
+// ============================================================================
+// INFINITE LOOP PREVENTION
+// ============================================================================
+
+/**
+ * Internal marker to identify storage updates triggered by dependency enforcement
+ * This prevents infinite loops in the onChanged listener
+ */
+const INTERNAL_UPDATE_MARKER = '__internal_dependency_update__';
+
+/**
+ * Wrapper for safeStorageSet that marks updates as internal
+ * This prevents the onChanged listener from re-processing its own changes
+ *
+ * @param {Object} updates - Storage updates to apply
+ * @returns {Promise<void>}
+ */
+async function setStorageWithMarker(updates) {
+  // Mark this as an internal update with timestamp
+  const markedUpdates = {
+    ...updates,
+    [INTERNAL_UPDATE_MARKER]: Date.now()
+  };
+
+  // Write to storage (will trigger onChanged listener)
+  await safeStorageSet(markedUpdates);
+
+  // Clean up marker immediately after (non-blocking)
+  chrome.storage.local.remove(INTERNAL_UPDATE_MARKER).catch(() => {
+    // Ignore cleanup errors - marker will be filtered anyway
+  });
+}
+
 // Handle storage changes and notify content scripts
 chrome.storage.onChanged.addListener((changes, namespace) => {
+  // CRITICAL: Ignore our own internal dependency updates to prevent infinite loops
+  if (changes[INTERNAL_UPDATE_MARKER]) {
+    return;
+  }
+
   if (namespace === "local") {
     // Smart dependency enforcement: Auto-enable Script Analysis when Navigation Guardian is enabled
     if (
@@ -741,7 +794,7 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
             "scriptAnalysisEnabled",
           ]);
           if (!scriptAnalysisResult.scriptAnalysisEnabled) {
-            await safeStorageSet({ scriptAnalysisEnabled: true });
+            await setStorageWithMarker({ scriptAnalysisEnabled: true });
           }
         } catch (error) {
           console.error(
@@ -771,7 +824,7 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
             updates.navigationGuardEnabled = true;
           }
           if (Object.keys(updates).length > 0) {
-            await safeStorageSet(updates);
+            await setStorageWithMarker(updates);
           }
         } catch (error) {
           console.error(

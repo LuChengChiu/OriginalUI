@@ -289,13 +289,20 @@ export class NavigationGuardian {
     try {
       const url = new URL(action, window.location.href);
       // Only allow http/https protocols
-      if (!['http:', 'https:'].includes(url.protocol)) {
-        console.error('NavigationGuardian: Blocked non-HTTP protocol:', url.protocol);
+      if (!["http:", "https:"].includes(url.protocol)) {
+        console.error(
+          "NavigationGuardian: Blocked non-HTTP protocol:",
+          url.protocol
+        );
         return null;
       }
       return url.href;
     } catch (error) {
-      console.error('NavigationGuardian: Invalid form action URL:', action, error);
+      console.error(
+        "NavigationGuardian: Invalid form action URL:",
+        action,
+        error
+      );
       return null;
     }
   }
@@ -308,23 +315,26 @@ export class NavigationGuardian {
    */
   createSanitizedForm(originalForm) {
     try {
-      const safeForm = document.createElement('form');
+      const safeForm = document.createElement("form");
 
       // Sanitize and validate action URL
       const safeAction = this.sanitizeFormAction(
-        originalForm.getAttribute('action') || window.location.href
+        originalForm.getAttribute("action") || window.location.href
       );
       if (!safeAction) {
-        console.warn('NavigationGuardian: Blocked form with malicious action');
+        console.warn("NavigationGuardian: Blocked form with malicious action");
         return null;
       }
 
       safeForm.action = safeAction;
-      safeForm.method = ['get', 'post'].includes(originalForm.method.toLowerCase())
+      safeForm.method = ["get", "post"].includes(
+        originalForm.method.toLowerCase()
+      )
         ? originalForm.method.toLowerCase()
-        : 'get';
-      safeForm.enctype = originalForm.enctype || 'application/x-www-form-urlencoded';
-      safeForm.target = originalForm.target || '_self';
+        : "get";
+      safeForm.enctype =
+        originalForm.enctype || "application/x-www-form-urlencoded";
+      safeForm.target = originalForm.target || "_self";
 
       // Extract form data safely
       const formData = new FormData(originalForm);
@@ -340,19 +350,19 @@ export class NavigationGuardian {
         const values = formData.getAll(name);
 
         for (const value of values) {
-          const input = document.createElement('input');
+          const input = document.createElement("input");
           input.name = name;
 
           // Handle file uploads correctly
           if (value instanceof File) {
-            input.type = 'file';
+            input.type = "file";
             // Use DataTransfer API to attach File object
             const dataTransfer = new DataTransfer();
             dataTransfer.items.add(value);
             input.files = dataTransfer.files;
           } else {
             // Regular text input (browser auto-escapes)
-            input.type = 'hidden';
+            input.type = "hidden";
             input.value = value;
           }
 
@@ -362,7 +372,7 @@ export class NavigationGuardian {
 
       return safeForm;
     } catch (error) {
-      console.error('NavigationGuardian: Form sanitization failed:', error);
+      console.error("NavigationGuardian: Form sanitization failed:", error);
       return null;
     }
   }
@@ -394,7 +404,9 @@ export class NavigationGuardian {
         const safeForm = this.createSanitizedForm(form);
 
         if (!safeForm) {
-          console.error('NavigationGuardian: Failed to sanitize form, blocking submission');
+          console.error(
+            "NavigationGuardian: Failed to sanitize form, blocking submission"
+          );
           return;
         }
 
@@ -476,11 +488,7 @@ export class NavigationGuardian {
             ...(popUnderAnalysis?.threats || []),
             ...(urlAnalysis?.threats || []),
           ],
-          isPopUnder:
-            popUnderAnalysis?.isPopUnder ||
-            false ||
-            urlAnalysis?.isPopUnder ||
-            false,
+          isPopUnder: popUnderAnalysis?.isPopUnder || urlAnalysis?.isPopUnder,
         };
 
         // Track this modal to prevent duplicates

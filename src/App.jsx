@@ -223,7 +223,7 @@ export default function App() {
 
         // Get current domain with timeout
         const domainResponse = await new Promise((resolve) => {
-          const timeout = setTimeout(() => resolve(null), 1000); // 3 second timeout
+          const timeout = setTimeout(() => resolve(null), 1000); // 1 second timeout
 
           chrome.runtime.sendMessage(
             { action: "getCurrentDomain" },
