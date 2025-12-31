@@ -1,6 +1,8 @@
 // Injected script for Navigation Guardian
 // Runs in the page's main world to intercept JavaScript navigation
 
+import { MaliciousPatternDetector } from './utils/maliciousPatternDetector.js';
+
 (function() {
   'use strict';
   
@@ -9,6 +11,21 @@
     return;
   }
   window.navigationGuardianInjected = true;
+
+  // Statistics tracking
+  let blockedScriptsCount = 0;
+  let blockedListenersCount = 0;
+
+  // Report stats to content script via postMessage
+  function reportStats() {
+    window.postMessage({
+      type: 'NAV_GUARDIAN_STATS',
+      stats: {
+        blockedScripts: blockedScriptsCount,
+        blockedListeners: blockedListenersCount
+      }
+    }, '*');
+  }
 
   // Feature detection and safe override utilities
   function canOverrideProperty(obj, propName) {
@@ -172,16 +189,8 @@
     locationHref: false
   };
 
-  // Pop-under detection patterns
-  const popUnderPatterns = [
-    /adexchangeclear\.com/i,
-    /\.php\?.*param_[45]/i,
-    /^\s*about:blank\s*$/,
-    /clicktraking/i,
-    /popunder/i,
-    /redirect.*click/i
-  ];
-  
+  // Pop-under detection now uses MaliciousPatternDetector module
+
   // Track window.open() call patterns for pop-under detection
   let recentWindowOpens = [];
   let lastDocumentClick = 0;
@@ -211,30 +220,25 @@
     // Check if this is a suspicious click listener
     if (type === 'click' && typeof listener === 'function') {
       const listenerStr = listener.toString();
-      
-      // Patterns that indicate malicious pop-under click listeners
-      const maliciousPatterns = [
-        /triggerPopUnder/i,
-        /window\.open.*_blank/,
-        /localStorage\..*lastPopUnderTime/i,
-        /adexchangeclear/i,
-        /param_[45]/,
-        /generateClickId/i,
-        /DELAY_IN_MILLISECONDS/i
-      ];
-      
-      const isSuspicious = maliciousPatterns.some(pattern => pattern.test(listenerStr));
-      
-      if (isSuspicious) {
+
+      // Use MaliciousPatternDetector for pattern analysis
+      const analysis = MaliciousPatternDetector.analyze(listenerStr, 6);
+
+      if (analysis.isMalicious) {
         console.log('Navigation Guardian: Blocked malicious click listener:', {
           target: this.tagName || this.constructor.name,
-          listener: listenerStr.substring(0, 200) + '...',
+          riskScore: analysis.riskScore,
+          threats: analysis.threats,
+          listenerPreview: listenerStr.substring(0, 200) + '...',
           options: options
         });
-        
+
         // Mark this listener as blocked
         suspiciousListeners.set(listener, true);
-        
+
+        // Update stats
+        blockedListenersCount++;
+
         // Don't actually add the malicious listener
         return;
       }
@@ -249,38 +253,51 @@
     try {
       // We can't directly enumerate existing listeners, but we can replace common targets
       const scriptElements = document.querySelectorAll('script');
+      let localBlockedCount = 0;
+
       scriptElements.forEach(script => {
         const content = script.textContent || script.innerHTML || '';
-        
-        // If script contains pop-under patterns, remove it
-        const maliciousPatterns = [
-          /triggerPopUnder/i,
-          /document\.addEventListener.*click.*triggerPopUnder/i,
-          /window\.open.*_blank.*window\.focus/i
-        ];
-        
-        if (maliciousPatterns.some(pattern => pattern.test(content))) {
-          console.log('Navigation Guardian: Removing malicious script with pop-under code');
+
+        if (!content) return;
+
+        // Use MaliciousPatternDetector with higher threshold for cleanup
+        const analysis = MaliciousPatternDetector.analyze(content, 7);
+
+        if (analysis.isMalicious) {
+          console.log('Navigation Guardian: Removing malicious script:', {
+            riskScore: analysis.riskScore,
+            threats: analysis.threats,
+            contentPreview: content.substring(0, 100) + '...'
+          });
           script.remove();
+          localBlockedCount++;
+          blockedScriptsCount++; // Update global counter
         }
       });
-      
+
+      if (localBlockedCount > 0) {
+        console.log(`Navigation Guardian: Blocked ${localBlockedCount} malicious scripts`);
+      }
+
       // Try to remove click listeners from document by cloning (nuclear option)
       if (document.body) {
         const newDocument = document.cloneNode(false);
         const newBody = document.body.cloneNode(true);
-        
+
         // This approach is too aggressive, but we could use it as last resort
         // newDocument.appendChild(newBody);
       }
-      
+
     } catch (error) {
       console.warn('Navigation Guardian: Error cleaning up malicious listeners:', error);
     }
   }
-  
+
   // Run cleanup immediately
   cleanupMaliciousListeners();
+
+  // Report initial stats after cleanup
+  reportStats();
   
   function isPopUnderBehavior(url, name, features) {
     const now = Date.now();
@@ -288,8 +305,8 @@
     // Check if this window.open() is triggered within 1 second of a document click
     const isClickTriggered = (now - lastDocumentClick) < 1000;
     
-    // Check for pop-under URL patterns
-    const hasPopUnderURL = popUnderPatterns.some(pattern => pattern.test(url || ''));
+    // Check for pop-under URL patterns using MaliciousPatternDetector
+    const hasPopUnderURL = MaliciousPatternDetector.isUrlMalicious(url || '');
     
     // Check for _blank target with immediate focus (pop-under characteristic)
     const isBlankTarget = name === '_blank' || name === '';

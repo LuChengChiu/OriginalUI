@@ -9,7 +9,6 @@ import AdDetectionEngine from "./adDetectionEngine.js";
 import { ClickHijackingProtector } from "./modules/ClickHijackingProtector.js";
 import { ElementRemover } from "./modules/ElementRemover.js";
 import { CleanupRegistry } from "./modules/cleanup-registry.js";
-import { ScriptAnalyzer } from "./modules/ScriptAnalyzer.js";
 import { NavigationGuardian } from "./modules/navigation-guardian/navigation-guardian.js";
 import { createRuleExecutionSystem } from "./modules/rule-execution/config/sources.config.js";
 import {
@@ -40,13 +39,7 @@ class OriginalUIController {
     this.cleanupRegistry = new CleanupRegistry();
 
     // Protection modules
-
-    this.scriptAnalyzer = new ScriptAnalyzer();
-    this.cleanupRegistry.register(
-      this.scriptAnalyzer,
-      "ScriptAnalyzer",
-      "normal"
-    );
+    // Note: Script analysis now handled by injected-script.js with MaliciousPatternDetector
 
     this.clickProtector = new ClickHijackingProtector();
     this.cleanupRegistry.register(
@@ -118,7 +111,7 @@ class OriginalUIController {
     }
 
     // 5. NOW activate security protections (domain is not whitelisted & extension is active)
-    this.scriptAnalyzer.activate();
+    // Note: Script analysis is handled by injected-script.js (runs earlier in page lifecycle)
 
     // 6. Initialize NavigationGuardian with loaded settings
     this.navigationGuardian.initialize(this.whitelist, this.navigationStats);
@@ -157,7 +150,6 @@ class OriginalUIController {
   stopProtection() {
     console.log("OriginalUI: Stopping protection systems");
 
-    this.scriptAnalyzer.deactivate();
     this.clickProtector.deactivate();
     this.navigationGuardian.disable();
   }
@@ -285,11 +277,9 @@ class OriginalUIController {
     // Scan for click hijacking overlays
     const removedOverlays = this.clickProtector.scanAndRemoveExistingOverlays();
 
-    // Get script analysis statistics
-    const scriptStats = this.scriptAnalyzer.getStats();
-
+    // Note: Script blocking stats are now reported via NAV_GUARDIAN_STATS message from injected-script.js
     console.log(
-      `OriginalUI: Initial scan complete. Removed ${removedOverlays} suspicious overlays, blocked ${scriptStats.blockedScriptsCount} scripts`
+      `OriginalUI: Initial scan complete. Removed ${removedOverlays} suspicious overlays`
     );
   }
 
@@ -374,6 +364,14 @@ class OriginalUIController {
       } else if (request.action === "executeRules") {
         this.executeRules();
         sendResponse({ success: true });
+      }
+    });
+
+    // Listen for stats from injected-script.js (Navigation Guardian)
+    window.addEventListener('message', (event) => {
+      if (event.source !== window) return;
+      if (event.data?.type === 'NAV_GUARDIAN_STATS') {
+        console.log('OriginalUI: Navigation Guardian stats:', event.data.stats);
       }
     });
   }

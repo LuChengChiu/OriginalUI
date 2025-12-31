@@ -1,7 +1,7 @@
 // Advanced Ad Detection Engine for OriginalUI Chrome Extension
 // Implements pattern-based detection rules with weighted scoring
 
-import { MAX_Z_INDEX, HIGH_Z_INDEX_THRESHOLD } from './constants.js';
+import { MAX_Z_INDEX } from "./constants.js";
 
 class AdDetectionEngine {
   constructor() {
@@ -500,53 +500,88 @@ class AdDetectionEngine {
     try {
       let score = 0;
       let detectedPatterns = [];
-      
+
       // Check for script elements with pop-under patterns
-      const scripts = element.tagName === 'SCRIPT' ? [element] : element.querySelectorAll('script');
-      
-      scripts.forEach(script => {
-        const scriptContent = script.textContent || script.innerHTML || '';
-        
+      const scripts =
+        element.tagName === "SCRIPT"
+          ? [element]
+          : element.querySelectorAll("script");
+
+      scripts.forEach((script) => {
+        const scriptContent = script.textContent || script.innerHTML || "";
+
         // Pop-under script patterns (high confidence indicators)
         const popUnderPatterns = [
-          { pattern: /triggerPopUnder/i, score: 10, name: 'triggerPopUnder function' },
-          { pattern: /window\.open.*_blank.*window\.focus/i, score: 9, name: 'popup with focus manipulation' },
-          { pattern: /localStorage\.setItem.*lastPopUnderTime/i, score: 8, name: 'pop-under rate limiting' },
-          { pattern: /document\.addEventListener.*click.*once.*true/i, score: 7, name: 'single-use click listener' },
-          { pattern: /adexchangeclear\.com/i, score: 6, name: 'known ad network' },
-          { pattern: /param_[45].*encodeURIComponent/i, score: 6, name: 'ad tracking parameters' },
-          { pattern: /generateClickId/i, score: 5, name: 'click ID generation' },
-          { pattern: /DELAY_IN_MILLISECONDS/i, score: 5, name: 'delay-based behavior' }
+          {
+            pattern: /triggerPopUnder/i,
+            score: 10,
+            name: "triggerPopUnder function",
+          },
+          {
+            pattern: /window\.open.*_blank.*window\.focus/i,
+            score: 9,
+            name: "popup with focus manipulation",
+          },
+          {
+            pattern: /localStorage\.setItem.*lastPopUnderTime/i,
+            score: 8,
+            name: "pop-under rate limiting",
+          },
+          {
+            pattern: /document\.addEventListener.*click.*once.*true/i,
+            score: 7,
+            name: "single-use click listener",
+          },
+          {
+            pattern: /param_[45].*encodeURIComponent/i,
+            score: 6,
+            name: "ad tracking parameters",
+          },
+          {
+            pattern: /generateClickId/i,
+            score: 5,
+            name: "click ID generation",
+          },
+          {
+            pattern: /DELAY_IN_MILLISECONDS/i,
+            score: 5,
+            name: "delay-based behavior",
+          },
         ];
-        
+
         popUnderPatterns.forEach(({ pattern, score: patternScore, name }) => {
           if (pattern.test(scriptContent)) {
             score += patternScore;
             detectedPatterns.push({
               pattern: name,
               score: patternScore,
-              match: scriptContent.match(pattern)?.[0]
+              match: scriptContent.match(pattern)?.[0],
             });
           }
         });
       });
-      
+
       // Check for inline event handlers with suspicious patterns
-      const elementsWithEvents = element.querySelectorAll('[onclick], [onmouseover], [onmouseout]');
-      elementsWithEvents.forEach(el => {
-        const onclick = el.getAttribute('onclick') || '';
-        const onmouseover = el.getAttribute('onmouseover') || '';
-        
-        if (onclick.includes('window.open') || onmouseover.includes('window.open')) {
+      const elementsWithEvents = element.querySelectorAll(
+        "[onclick], [onmouseover], [onmouseout]"
+      );
+      elementsWithEvents.forEach((el) => {
+        const onclick = el.getAttribute("onclick") || "";
+        const onmouseover = el.getAttribute("onmouseover") || "";
+
+        if (
+          onclick.includes("window.open") ||
+          onmouseover.includes("window.open")
+        ) {
           score += 6;
           detectedPatterns.push({
-            pattern: 'inline popup handler',
+            pattern: "inline popup handler",
             score: 6,
-            element: el.tagName
+            element: el.tagName,
           });
         }
       });
-      
+
       return {
         isMatch: score >= 8,
         score,
@@ -554,75 +589,95 @@ class AdDetectionEngine {
         details: {
           totalScripts: scripts.length,
           detectedPatterns,
-          riskLevel: score >= 15 ? 'HIGH' : score >= 8 ? 'MEDIUM' : 'LOW'
-        }
+          riskLevel: score >= 15 ? "HIGH" : score >= 8 ? "MEDIUM" : "LOW",
+        },
       };
     } catch (error) {
       return {
         isMatch: false,
         score: 0,
         rule: "POPUP_SCRIPT_ANALYSIS",
-        error: error.message
+        error: error.message,
       };
     }
   }
-  
+
   // Malicious Event Listener Detection (P0, 90% confidence)
   detectMaliciousListeners(element) {
     try {
       let score = 0;
       let suspiciousEvents = [];
-      
+
       // Check for elements with suspicious event listener patterns
-      const clickableElements = element.querySelectorAll('[onclick], a, button, div[style*="cursor"], *[data-click]');
-      
-      clickableElements.forEach(el => {
-        const onclick = el.getAttribute('onclick') || '';
-        const href = el.getAttribute('href') || '';
-        const dataClick = el.getAttribute('data-click') || '';
-        
+      const clickableElements = element.querySelectorAll(
+        '[onclick], a, button, div[style*="cursor"], *[data-click]'
+      );
+
+      clickableElements.forEach((el) => {
+        const onclick = el.getAttribute("onclick") || "";
+        const href = el.getAttribute("href") || "";
+        const dataClick = el.getAttribute("data-click") || "";
+
         // Check for suspicious click patterns
         const suspiciousClickPatterns = [
-          { pattern: /window\.open\(/i, score: 5, name: 'window.open call' },
-          { pattern: /location\.href\s*=/i, score: 4, name: 'location redirect' },
-          { pattern: /location\.assign|location\.replace/i, score: 4, name: 'navigation methods' },
-          { pattern: /top\.location/i, score: 3, name: 'frame breaking' }
+          { pattern: /window\.open\(/i, score: 5, name: "window.open call" },
+          {
+            pattern: /location\.href\s*=/i,
+            score: 4,
+            name: "location redirect",
+          },
+          {
+            pattern: /location\.assign|location\.replace/i,
+            score: 4,
+            name: "navigation methods",
+          },
+          { pattern: /top\.location/i, score: 3, name: "frame breaking" },
         ];
-        
-        suspiciousClickPatterns.forEach(({ pattern, score: patternScore, name }) => {
-          if (pattern.test(onclick) || pattern.test(href) || pattern.test(dataClick)) {
-            score += patternScore;
-            suspiciousEvents.push({
-              element: el.tagName + (el.className ? '.' + el.className.split(' ')[0] : ''),
-              pattern: name,
-              score: patternScore
-            });
+
+        suspiciousClickPatterns.forEach(
+          ({ pattern, score: patternScore, name }) => {
+            if (
+              pattern.test(onclick) ||
+              pattern.test(href) ||
+              pattern.test(dataClick)
+            ) {
+              score += patternScore;
+              suspiciousEvents.push({
+                element:
+                  el.tagName +
+                  (el.className ? "." + el.className.split(" ")[0] : ""),
+                pattern: name,
+                score: patternScore,
+              });
+            }
           }
-        });
-        
+        );
+
         // Check for suspicious href patterns
-        if (href && (
-          href.includes('adexchangeclear.com') ||
-          href.includes('param_4=') ||
-          href.includes('param_5=') ||
-          /\.php\?.*redirect/i.test(href)
-        )) {
+        if (
+          href &&
+          (href.includes("adexchangeclear.com") ||
+            href.includes("param_4=") ||
+            href.includes("param_5=") ||
+            /\.php\?.*redirect/i.test(href))
+        ) {
           score += 6;
           suspiciousEvents.push({
             element: el.tagName,
-            pattern: 'malicious href',
+            pattern: "malicious href",
             score: 6,
-            href: href.substring(0, 50) + '...'
+            href: href.substring(0, 50) + "...",
           });
         }
       });
-      
+
       // Check for document-level event listeners (harder to detect, but we can infer)
-      const hasDocumentListeners = element === document.body || element === document.documentElement;
+      const hasDocumentListeners =
+        element === document.body || element === document.documentElement;
       if (hasDocumentListeners && score > 0) {
         score += 3; // Boost score for document-level suspicious activity
       }
-      
+
       return {
         isMatch: score >= 7,
         score,
@@ -630,94 +685,118 @@ class AdDetectionEngine {
         details: {
           suspiciousEvents,
           totalClickableElements: clickableElements.length,
-          hasDocumentListeners
-        }
+          hasDocumentListeners,
+        },
       };
     } catch (error) {
       return {
         isMatch: false,
         score: 0,
         rule: "MALICIOUS_EVENT_LISTENERS",
-        error: error.message
+        error: error.message,
       };
     }
   }
-  
+
   // LocalStorage Abuse Detection (P1, 85% confidence)
   detectLocalStorageAbuse(element) {
     try {
       let score = 0;
       let abusePatterns = [];
-      
+
       // Check for scripts that abuse localStorage
-      const scripts = element.tagName === 'SCRIPT' ? [element] : element.querySelectorAll('script');
-      
-      scripts.forEach(script => {
-        const scriptContent = script.textContent || script.innerHTML || '';
-        
+      const scripts =
+        element.tagName === "SCRIPT"
+          ? [element]
+          : element.querySelectorAll("script");
+
+      scripts.forEach((script) => {
+        const scriptContent = script.textContent || script.innerHTML || "";
+
         // LocalStorage abuse patterns
         const storagePatterns = [
-          { pattern: /localStorage\.setItem.*lastPopUnderTime/i, score: 8, name: 'pop-under timing storage' },
-          { pattern: /localStorage\.setItem.*clickId/i, score: 6, name: 'click tracking storage' },
-          { pattern: /localStorage\.setItem.*adClick/i, score: 6, name: 'ad click storage' },
-          { pattern: /localStorage\.getItem.*Pop/i, score: 5, name: 'popup state checking' },
-          { pattern: /sessionStorage\.setItem.*redirect/i, score: 4, name: 'redirect session storage' }
+          {
+            pattern: /localStorage\.setItem.*lastPopUnderTime/i,
+            score: 8,
+            name: "pop-under timing storage",
+          },
+          {
+            pattern: /localStorage\.setItem.*clickId/i,
+            score: 6,
+            name: "click tracking storage",
+          },
+          {
+            pattern: /localStorage\.setItem.*adClick/i,
+            score: 6,
+            name: "ad click storage",
+          },
+          {
+            pattern: /localStorage\.getItem.*Pop/i,
+            score: 5,
+            name: "popup state checking",
+          },
+          {
+            pattern: /sessionStorage\.setItem.*redirect/i,
+            score: 4,
+            name: "redirect session storage",
+          },
         ];
-        
+
         storagePatterns.forEach(({ pattern, score: patternScore, name }) => {
           if (pattern.test(scriptContent)) {
             score += patternScore;
             abusePatterns.push({
               pattern: name,
-              score: patternScore
+              score: patternScore,
             });
           }
         });
       });
-      
+
       // Check current localStorage for suspicious entries
       try {
         const suspiciousKeys = [];
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
-          if (key && (
-            key.includes('lastPopUnderTime') ||
-            key.includes('popunder') ||
-            key.includes('adClick') ||
-            key.includes('clickId') ||
-            key.toLowerCase().includes('popup')
-          )) {
+          if (
+            key &&
+            (key.includes("lastPopUnderTime") ||
+              key.includes("popunder") ||
+              key.includes("adClick") ||
+              key.includes("clickId") ||
+              key.toLowerCase().includes("popup"))
+          ) {
             suspiciousKeys.push(key);
             score += 3;
           }
         }
-        
+
         if (suspiciousKeys.length > 0) {
           abusePatterns.push({
-            pattern: 'existing malicious localStorage entries',
+            pattern: "existing malicious localStorage entries",
             score: suspiciousKeys.length * 3,
-            keys: suspiciousKeys
+            keys: suspiciousKeys,
           });
         }
       } catch (storageError) {
         // localStorage access might be restricted
       }
-      
+
       return {
         isMatch: score >= 6,
         score,
         rule: "LOCALSTORAGE_ABUSE",
         details: {
           abusePatterns,
-          totalScripts: scripts.length
-        }
+          totalScripts: scripts.length,
+        },
       };
     } catch (error) {
       return {
         isMatch: false,
         score: 0,
         rule: "LOCALSTORAGE_ABUSE",
-        error: error.message
+        error: error.message,
       };
     }
   }

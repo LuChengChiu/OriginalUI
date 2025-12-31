@@ -93,6 +93,41 @@ const bundleContentScripts = (mode) => ({
           : undefined,
       },
     });
+
+    // Bundle injected-script.js with MaliciousPatternDetector
+    await build({
+      configFile: false,
+      define: {
+        'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'production'),
+        'process.env': JSON.stringify({ NODE_ENV: process.env.NODE_ENV || 'production' }),
+        'global': 'globalThis'
+      },
+      build: {
+        emptyOutDir: false,
+        outDir: "dist/scripts",
+        lib: {
+          entry: resolve(__dirname, "src/scripts/injected-script.js"),
+          name: "injectedScript",
+          formats: ["iife"],
+          fileName: () => "injected-script.js",
+        },
+        rollupOptions: {
+          output: {
+            extend: true,
+          },
+        },
+        minify: isProduction ? "terser" : false,
+        sourcemap: !isProduction,
+        terserOptions: isProduction
+          ? {
+              compress: {
+                drop_console: false, // Keep console for debugging
+                drop_debugger: true,
+              },
+            }
+          : undefined,
+      },
+    });
   },
 });
 
@@ -107,12 +142,8 @@ export default defineConfig(({ mode }) => ({
         cpSync("src/data", "dist/data", { recursive: true });
         // Copy network-blocking data (static rulesets) to match manifest path
         cpSync("src/scripts/modules/network-blocking/data", "dist/network-blocking/data", { recursive: true });
-        // Copy injected-script.js (runs in page world, doesn't need bundling)
+        // Note: injected-script.js is now bundled by bundleContentScripts plugin
         mkdirSync("dist/scripts", { recursive: true });
-        copyFileSync(
-          "src/scripts/injected-script.js",
-          "dist/scripts/injected-script.js"
-        );
       },
     },
     bundleContentScripts(mode),
