@@ -26,16 +26,14 @@ describe('useBulkChromeStorage', () => {
     const schema = {
       whitelist: [],
       customRules: [],
-      defaultRulesEnabled: true,
-      patternRulesEnabled: true
+      defaultRulesEnabled: true
     };
 
     chrome.storage.local.get.mockImplementation((keys, callback) => {
       callback({
         whitelist: ['example.com', 'google.com'],
         customRules: [{ id: '1', name: 'Rule 1' }],
-        defaultRulesEnabled: false,
-        patternRulesEnabled: true
+        defaultRulesEnabled: false
       });
     });
 
@@ -50,8 +48,7 @@ describe('useBulkChromeStorage', () => {
     expect(result.current.values).toEqual({
       whitelist: ['example.com', 'google.com'],
       customRules: [{ id: '1', name: 'Rule 1' }],
-      defaultRulesEnabled: false,
-      patternRulesEnabled: true
+      defaultRulesEnabled: false
     });
     expect(result.current.error).toBe(null);
   });
@@ -60,15 +57,14 @@ describe('useBulkChromeStorage', () => {
     const schema = {
       whitelist: [],
       customRules: [],
-      defaultRulesEnabled: true,
-      patternRulesEnabled: true
+      defaultRulesEnabled: true
     };
 
     chrome.storage.local.get.mockImplementation((keys, callback) => {
       // Only provide some values
       callback({
         whitelist: ['example.com']
-        // customRules, defaultRulesEnabled, patternRulesEnabled missing
+        // customRules, defaultRulesEnabled missing
       });
     });
 
@@ -82,8 +78,7 @@ describe('useBulkChromeStorage', () => {
     expect(result.current.values).toEqual({
       whitelist: ['example.com'],
       customRules: [],
-      defaultRulesEnabled: true,
-      patternRulesEnabled: true
+      defaultRulesEnabled: true
     });
   });
 

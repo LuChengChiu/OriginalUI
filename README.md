@@ -7,7 +7,7 @@
 
 > A comprehensive Chrome Extension providing advanced web protection through intelligent content filtering and navigation security.
 
-OriginalUI is a powerful Chrome extension built with modern web technologies (React 19, Vite 7, Tailwind CSS 4) that delivers multi-layered protection against unwanted web content. It combines element removal, pattern detection, navigation interception, and network request blocking to create a safer, cleaner browsing experience.
+OriginalUI is a powerful Chrome extension built with modern web technologies (React 19, Vite 7, Tailwind CSS 4) that delivers multi-layered protection against unwanted web content. It combines element removal, navigation interception, and network request blocking to create a safer, cleaner browsing experience.
 
 ## Table of Contents
 
@@ -40,11 +40,10 @@ Modern web browsing is increasingly plagued by intrusive advertisements, trackin
 OriginalUI takes a comprehensive, defense-in-depth approach by combining multiple protection strategies:
 
 1. **CSS Selector-based Element Removal** - Removes known unwanted elements from the DOM
-2. **Heuristic Pattern Detection** - Identifies and blocks advertisements through behavioral analysis
-3. **Navigation Guardian** - Intercepts malicious cross-origin navigation attempts with user confirmation
-4. **Network Request Blocking** - Blocks tracking and malicious domains at the network level
-5. **Event Protection** - Prevents click hijacking and pop-under attacks
-6. **Script Analysis** - Real-time threat detection in JavaScript execution
+2. **Navigation Guardian** - Intercepts malicious cross-origin navigation attempts with user confirmation
+3. **Network Request Blocking** - Blocks tracking and malicious domains at the network level
+4. **Event Protection** - Prevents click hijacking and pop-under attacks
+5. **Script Analysis** - Real-time threat detection in JavaScript execution
 
 The extension is designed for users who want granular control over their browsing experience, with the flexibility to whitelist trusted sites while maintaining strong protection everywhere else.
 
@@ -54,7 +53,6 @@ The extension is designed for users who want granular control over their browsin
 
 - **Element Removal System** - Remove unwanted DOM elements using CSS selectors with built-in and custom rules
 - **Navigation Guardian** - Intercept and block malicious cross-origin navigation attempts with user confirmation modals
-- **Advanced Pattern Detection** - Heuristic-based ad detection engine using pattern analysis and confidence scoring
 - **Network Request Blocking** - Block malicious domains and tracking requests at the network level with regex pattern support
 - **Click Hijacking Protection** - Advanced click analysis and suspicious overlay detection
 - **Script Analysis** - Real-time script threat detection and monitoring
@@ -182,7 +180,6 @@ Access comprehensive settings by right-clicking the OriginalUI icon and selectin
 - **Whitelist Management** - Add/remove trusted domains
 - **Default Rules** - Toggle built-in protection rules
 - **Custom Rules** - Create and manage custom CSS selector rules
-- **Pattern Detection** - Enable/disable heuristic ad detection
 - **Navigation Guardian** - Configure cross-origin navigation protection
 - **Network Blocking** - Manage network request blocking patterns
 - **Import/Export** - Backup and restore your configuration
@@ -207,7 +204,6 @@ src/
 │   ├── background.js                  # Service worker
 │   ├── injected-script.js             # Page-world JavaScript interception
 │   ├── constants.js                   # Shared configuration
-│   ├── adDetectionEngine.js           # Pattern detection engine
 │   ├── modules/                       # Protection modules
 │   └── utils/                         # Utility functions
 └── data/
@@ -232,9 +228,8 @@ Each protection module operates independently with well-defined interfaces:
 2. If domain is whitelisted OR extension inactive → Skip all protections
 3. If active and not whitelisted → Activate all enabled protection modules
 4. NavigationGuardian monitors cross-origin navigation attempts
-5. Pattern detection analyzes elements with time-slicing optimization
-6. Element removal executes based on CSS selector rules
-7. Statistics sync to Chrome storage and display in popup
+5. Element removal executes based on CSS selector rules
+6. Statistics sync to Chrome storage and display in popup
 
 ## Development
 
@@ -306,7 +301,6 @@ OriginalUI uses Chrome's Storage API with the following schema:
   customRules: Rule[],                  // User-defined rules
   defaultRulesEnabled: boolean,         // Toggle for default rules
   customRulesEnabled: boolean,          // Toggle for custom rules
-  patternRulesEnabled: boolean,         // Toggle for pattern detection
   navigationGuardEnabled: boolean,      // Toggle for navigation guardian
   defaultBlockRequestEnabled: boolean,  // Toggle for network blocking
   networkBlockPatterns: string[],       // Custom network blocking patterns

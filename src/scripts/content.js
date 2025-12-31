@@ -5,7 +5,6 @@
 
 // Import modules
 import { domainMatches } from "../utils/domainMatch.js";
-import AdDetectionEngine from "./adDetectionEngine.js";
 import { ClickHijackingProtector } from "./modules/ClickHijackingProtector.js";
 import { ElementRemover } from "./modules/ElementRemover.js";
 import { CleanupRegistry } from "./modules/cleanup-registry.js";
@@ -33,7 +32,6 @@ class OriginalUIController {
     this.customRules = [];
     this.defaultRulesEnabled = true;
     this.customRulesEnabled = true;
-    this.patternRulesEnabled = true;
 
     // Cleanup registry for memory leak prevention
     this.cleanupRegistry = new CleanupRegistry();
@@ -61,7 +59,6 @@ class OriginalUIController {
 
     // Statistics
     this.domainStats = {};
-    this.adDetectionEngine = null;
 
     // Rule execution system (initialized in initialize())
     this.ruleExecutionManager = null;
@@ -90,11 +87,7 @@ class OriginalUIController {
     // 2. Setup message listeners ALWAYS (needed for whitelist changes from popup)
     this.setupMessageListeners();
 
-    // 3. Initialize AdDetectionEngine
-    this.adDetectionEngine = new AdDetectionEngine();
-    console.log("OriginalUI: AdDetectionEngine initialized");
-
-    // 3.5. Initialize Rule Execution System
+    // 3. Initialize Rule Execution System
     this.ruleExecutionManager = await createRuleExecutionSystem();
     console.log("OriginalUI: Rule Execution System initialized");
 
@@ -185,11 +178,6 @@ class OriginalUIController {
       { enabledSources, timeSlicing: true }
     );
 
-    // Execute pattern-based detection (unchanged - handled separately)
-    if (this.patternRulesEnabled && this.adDetectionEngine) {
-      stats.patternRulesRemoved = await this.executePatternRules();
-    }
-
     // Update statistics
     await this.updateDomainStats(stats);
 
@@ -205,55 +193,6 @@ class OriginalUIController {
   // NOTE: executeDefaultRules() and executeCustomRules() have been removed
   // They are now handled by RuleExecutionManager in rule-execution module
   // See: src/scripts/modules/rule-execution/
-
-  /**
-   * Execute pattern-based detection rules
-   */
-  async executePatternRules() {
-    if (!this.adDetectionEngine) return 0;
-
-    let removedCount = 0;
-    const suspiciousElements = document.querySelectorAll(
-      "div, iframe, section, aside, header"
-    );
-
-    if (suspiciousElements.length === 0) return 0;
-
-    // Use simplified sequential processing
-    for (const element of suspiciousElements) {
-      try {
-        if (!element.isConnected || ElementRemover.isProcessed(element))
-          continue;
-
-        const analysis = await this.adDetectionEngine.analyze(element);
-
-        if (analysis.isAd && analysis.confidence > 0.7) {
-          element.setAttribute(
-            "data-justui-confidence",
-            Math.round(analysis.confidence * 100)
-          );
-          element.setAttribute(
-            "data-justui-rules",
-            analysis.matchedRules.map((r) => r.rule).join(",")
-          );
-
-          if (
-            ElementRemover.removeElement(
-              element,
-              `pattern-${analysis.totalScore}`,
-              ElementRemover.REMOVAL_STRATEGIES.REMOVE
-            )
-          ) {
-            removedCount++;
-          }
-        }
-      } catch (error) {
-        console.error("OriginalUI: Error in pattern analysis:", error);
-      }
-    }
-
-    return removedCount;
-  }
 
   /**
    * Yield control to the main thread using cooperative scheduling
@@ -295,7 +234,6 @@ class OriginalUIController {
         "customRules",
         "defaultRulesEnabled",
         "customRulesEnabled",
-        "patternRulesEnabled",
         "navigationGuardEnabled",
         "navigationStats",
       ]);
@@ -306,7 +244,6 @@ class OriginalUIController {
       this.customRules = result.customRules || [];
       this.defaultRulesEnabled = result.defaultRulesEnabled !== false;
       this.customRulesEnabled = result.customRulesEnabled !== false;
-      this.patternRulesEnabled = result.patternRulesEnabled !== false;
       this.navigationGuardEnabled = result.navigationGuardEnabled !== false;
       this.navigationStats = result.navigationStats || {
         blockedCount: 0,
@@ -324,7 +261,6 @@ class OriginalUIController {
         enabledModules: {
           defaultRules: this.defaultRulesEnabled, // EasyList bundled here
           customRules: this.customRulesEnabled,
-          patternRules: this.patternRulesEnabled,
           navigationGuard: this.navigationGuardEnabled,
         },
       });
@@ -341,7 +277,6 @@ class OriginalUIController {
       this.customRules = [];
       this.defaultRulesEnabled = false;
       this.customRulesEnabled = false;
-      this.patternRulesEnabled = false;
       this.navigationGuardEnabled = false;
       this.navigationStats = { blockedCount: 0, allowedCount: 0 };
       this.domainStats = {};
@@ -367,13 +302,6 @@ class OriginalUIController {
       }
     });
 
-    // Listen for stats from injected-script.js (Navigation Guardian)
-    window.addEventListener('message', (event) => {
-      if (event.source !== window) return;
-      if (event.data?.type === 'NAV_GUARDIAN_STATS') {
-        console.log('OriginalUI: Navigation Guardian stats:', event.data.stats);
-      }
-    });
   }
 
   /**
@@ -414,7 +342,6 @@ class OriginalUIController {
       "customRules",
       "defaultRulesEnabled",
       "customRulesEnabled",
-      "patternRulesEnabled",
     ];
     ruleChanges.forEach((key) => {
       if (changes[key]) {
@@ -476,7 +403,7 @@ class OriginalUIController {
 
     // Update session stats
     this.domainStats[this.currentDomain].defaultRulesRemoved =
-      (stats.defaultRulesRemoved || 0) + (stats.patternRulesRemoved || 0);
+      stats.defaultRulesRemoved || 0;
     this.domainStats[this.currentDomain].customRulesRemoved =
       stats.customRulesRemoved || 0;
     this.domainStats[this.currentDomain].easylistRulesRemoved =
@@ -544,7 +471,6 @@ class OriginalUIController {
     this.domainStats = {};
     this.navigationStats = { blockedCount: 0, allowedCount: 0 };
     this.whitelistCache = null;
-    this.adDetectionEngine = null;
 
     // Clean up ElementRemover static state
     if (typeof this.constructor.ElementRemover?.cleanup === "function") {

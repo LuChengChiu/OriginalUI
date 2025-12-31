@@ -22,8 +22,7 @@ const isChromeContextValid = () => {
  * const { values, updateValue, loading, error } = useBulkChromeStorage({
  *   whitelist: [],
  *   customRules: [],
- *   defaultRulesEnabled: true,
- *   patternRulesEnabled: true
+ *   defaultRulesEnabled: true
  * });
  *
  * if (loading) return <Loading />;

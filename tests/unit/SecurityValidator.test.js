@@ -3,13 +3,14 @@
  * Tests URL validation, threat analysis, and security features
  */
 
-import { SecurityValidator } from '../../src/scripts/modules/navigation-guardian/SecurityValidator.js';
+import { describe, test, expect, beforeEach, vi } from 'vitest';
+import { SecurityValidator } from '../../src/scripts/modules/navigation-guardian/security-validator.js';
 
 // Mock console to capture error messages
 const mockConsole = {
-  warn: jest.fn(),
-  error: jest.fn(),
-  log: jest.fn()
+  warn: vi.fn(),
+  error: vi.fn(),
+  log: vi.fn()
 };
 
 global.console = mockConsole;

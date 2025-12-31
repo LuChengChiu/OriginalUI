@@ -3,7 +3,7 @@
  * Testing with Jest to isolate unicode parsing issues
  */
 
-import { SecurityValidator } from '../../src/scripts/modules/navigation-guardian/SecurityValidator.js';
+import { SecurityValidator } from '../../src/scripts/modules/navigation-guardian/security-validator.js';
 
 describe('SecurityValidator with Jest', () => {
   let validator;

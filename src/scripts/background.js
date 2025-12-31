@@ -194,7 +194,6 @@ chrome.runtime.onInstalled.addListener(async () => {
       "customRules",
       "defaultRulesEnabled",
       "customRulesEnabled",
-      "patternRulesEnabled",
       "navigationGuardEnabled",
       "popUnderProtectionEnabled",
       "scriptAnalysisEnabled",
@@ -210,8 +209,6 @@ chrome.runtime.onInstalled.addListener(async () => {
       updates.defaultRulesEnabled = true;
     if (result.customRulesEnabled === undefined)
       updates.customRulesEnabled = true;
-    if (result.patternRulesEnabled === undefined)
-      updates.patternRulesEnabled = true;
     if (result.navigationGuardEnabled === undefined)
       updates.navigationGuardEnabled = true;
     if (result.popUnderProtectionEnabled === undefined)

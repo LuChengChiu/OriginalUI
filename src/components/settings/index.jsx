@@ -9,7 +9,6 @@ import ErrorDisplay from "./error-display";
 import Footer from "./footer";
 import Loading from "./loading";
 import NavigationGuardian from "./navigation-guardian";
-import PatternRules from "./pattern-rules";
 import DefaultSelectorRuleManager from "./selector-rules";
 import WhitelistManager from "./whitelist";
 
@@ -17,7 +16,6 @@ function SettingsBeta() {
   const { values, updateValue, loading, error } = useBulkChromeStorage({
     defaultRulesEnabled: true,
     customRulesEnabled: true,
-    patternRulesEnabled: true,
     navigationGuardEnabled: true,
     defaultBlockRequestEnabled: true,
     whitelist: [],
@@ -93,13 +91,6 @@ function SettingsBeta() {
               onRemoveCustomRule={handleRemoveCustomRule}
               onAddNewRule={handleAddNewRule}
               onEditRule={handleEditCustomRule}
-            />
-
-            <PatternRules
-              enabled={values.patternRulesEnabled}
-              onToggleCheck={(enabled) =>
-                updateValue("patternRulesEnabled", enabled)
-              }
             />
 
             <BlockRequestsManager

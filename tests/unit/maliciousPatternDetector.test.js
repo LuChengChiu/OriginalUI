@@ -3,7 +3,7 @@
  * Tests pattern detection for pop-under and malicious script analysis
  */
 
-import { MaliciousPatternDetector } from '../../src/scripts/utils/maliciousPatternDetector.js';
+import { MaliciousPatternDetector } from '../../src/scripts/utils/malicious-pattern-detector.js';
 
 describe('MaliciousPatternDetector', () => {
 

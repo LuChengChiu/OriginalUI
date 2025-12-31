@@ -1,4 +1,3 @@
-import RadioTower from "../icons/radio-tower";
 import ShieldLink from "../icons/shield-link";
 import { H3 } from "../ui/typography";
 import PopupToggle from "../ui/checkbox/popup-toggle";
@@ -6,12 +5,6 @@ import PopupToggle from "../ui/checkbox/popup-toggle";
 const navigationLabel = (
   <>
     Navigation <ShieldLink />
-  </>
-);
-
-const patternLabel = (
-  <>
-    Pattern <RadioTower />
   </>
 );
 
@@ -27,14 +20,6 @@ export default function DefaultSections({ state, handleProtectionToggle }) {
           checked={state.protectionSystems.defaultRules}
           onChange={(newState) =>
             handleProtectionToggle("defaultRules", newState)
-          }
-        />
-        <PopupToggle
-          id="patternrules"
-          checked={state.protectionSystems.patternRules}
-          label={patternLabel}
-          onChange={(newState) =>
-            handleProtectionToggle("patternRules", newState)
           }
         />
         <PopupToggle

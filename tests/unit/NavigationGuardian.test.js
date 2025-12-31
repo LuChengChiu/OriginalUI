@@ -23,7 +23,7 @@ const mockSecurityValidator = {
   getThreatLevel: jest.fn()
 };
 
-jest.mock('../../src/scripts/modules/navigation-guardian/SecurityValidator.js', () => ({
+jest.mock('../../src/scripts/modules/navigation-guardian/security-validator.js', () => ({
   SecurityValidator: jest.fn().mockImplementation(() => mockSecurityValidator)
 }));
 

@@ -7,10 +7,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 OriginalUI is a comprehensive Chrome Extension built with React 19, Vite 7, and Tailwind CSS 4. It provides advanced web protection through multiple defensive systems:
 
 1. **Element Removal System** - Removes unwanted DOM elements (ads, trackers, etc.) using CSS selectors
-2. **Navigation Guardian** - Intercepts and blocks malicious cross-origin navigation attempts with user confirmation modals  
-3. **Advanced Pattern Detection** - Heuristic-based ad detection engine using pattern analysis
-4. **Network Request Blocking** - Block malicious domains and tracking requests at the network level
-5. **Whitelist Management** - Clean domains that are exempt from all protection systems
+2. **Navigation Guardian** - Intercepts and blocks malicious cross-origin navigation attempts with user confirmation modals
+3. **Network Request Blocking** - Block malicious domains and tracking requests at the network level
+4. **Whitelist Management** - Clean domains that are exempt from all protection systems
 
 The extension operates on all domains EXCEPT those in the whitelist, providing comprehensive protection against ads, trackers, pop-unders, malicious redirects, and other unwanted content.
 
@@ -26,11 +25,10 @@ The extension operates on all domains EXCEPT those in the whitelist, providing c
 1. **Main Toggle** - Enable/disable entire extension functionality
 2. **Element Removal System** - CSS selector-based element removal with default/custom rules
 3. **Navigation Guardian** - Cross-origin navigation interception with user confirmation modals
-4. **Advanced Pattern Detection** - Heuristic-based ad detection using behavioral analysis
-5. **Network Request Blocking** - Block malicious domains and tracking requests with configurable patterns
-6. **Whitelist System** - Manage clean domains that are EXEMPT from all protection systems (trusted sites)
-7. **Statistics & Analytics** - Real-time tracking of blocked elements and navigation attempts
-8. **Settings Management** - Comprehensive user configuration interface with modular beta version
+4. **Network Request Blocking** - Block malicious domains and tracking requests with configurable patterns
+5. **Whitelist System** - Manage clean domains that are EXEMPT from all protection systems (trusted sites)
+6. **Statistics & Analytics** - Real-time tracking of blocked elements and navigation attempts
+7. **Settings Management** - Comprehensive user configuration interface with modular beta version
 
 **Chrome Extension Structure:**
 - `manifest.json` - Chrome Extension Manifest V3 configuration
@@ -57,7 +55,6 @@ The extension operates on all domains EXCEPT those in the whitelist, providing c
   customRules: Rule[],                  // User-defined rules
   defaultRulesEnabled: boolean,         // Toggle for default rules
   customRulesEnabled: boolean,          // Toggle for custom rules
-  patternRulesEnabled: boolean,         // Toggle for Advanced Pattern Detection
   navigationGuardEnabled: boolean,      // Toggle for Navigation Guardian
   defaultBlockRequestEnabled: boolean,  // Toggle for network request blocking
   networkBlockPatterns: string[],       // Custom network blocking patterns
@@ -125,7 +122,6 @@ Navigation Guardian provides comprehensive protection against malicious cross-or
 - Whitelist CRUD operations
 - Default rules toggle panel with individual rule controls
 - Custom rule editor with form validation
-- Advanced Pattern Detection toggle controls
 - Navigation Guardian toggle and statistics management
 - Network request blocking configuration
 - Import/export functionality for rules and settings
@@ -145,7 +141,6 @@ Navigation Guardian provides comprehensive protection against malicious cross-or
 - **ElementRemover**: DOM element removal with multiple strategies (hide, remove, neutralize)
 - **RequestBlockingProtector**: Request interception and blocking capabilities
 - **CleanupRegistry**: Centralized cleanup management for memory leak prevention
-- **Pattern Detection**: Advanced pattern detection using AdDetectionEngine with time-slicing optimization
 - **Chrome API Safety**: Robust Chrome storage operations with context validation and retry mechanisms
 - Communicate execution results and statistics to background script
 
@@ -179,7 +174,7 @@ Navigation Guardian provides comprehensive protection against malicious cross-or
 3. If active and NOT whitelisted → Activate ScriptAnalyzer and all protection modules
 4. NavigationGuardian monitors cross-origin navigation attempts
 5. ClickHijackingProtector analyzes and blocks suspicious clicks
-6. Execute enabled rule modules (default + custom + pattern detection)
+6. Execute enabled rule modules (default + custom + EasyList)
 7. Popup displays current domain status and comprehensive protection statistics
 
 **Protection System Logic:**
@@ -189,7 +184,6 @@ Navigation Guardian provides comprehensive protection against malicious cross-or
 - **ScriptAnalyzer**: Monitors and blocks malicious scripts in real-time
 - **NavigationGuardian**: Protects against cross-origin navigation attacks
 - **Element Removal**: Executes when `isActive && !isDomainWhitelisted(currentDomain)`
-- **Pattern Detection**: Advanced pattern detection with confidence scoring
 
 **Default Rules:**
 Initialize extension with common element removal rules for advertising, tracking, and annoyances. Store in `defaultRules` array with categories like:
@@ -220,7 +214,6 @@ Block malicious domains and tracking requests at the network level. Store in `sr
 - `customRules` - User-created rules array
 - `defaultRulesEnabled` - Boolean for default rules toggle
 - `customRulesEnabled` - Boolean for custom rules toggle
-- `patternRulesEnabled` - Boolean for Advanced Pattern Detection toggle
 - `navigationGuardEnabled` - Boolean for Navigation Guardian toggle
 - `defaultBlockRequestEnabled` - Boolean for network blocking toggle
 - `networkBlockPatterns` - Array of custom network blocking patterns
@@ -239,7 +232,6 @@ The content script uses a clean modular architecture with specialized protection
 src/scripts/
 ├── content.js                         // OriginalUIController orchestrator
 ├── constants.js                       // Shared constants and performance tuning parameters
-├── adDetectionEngine.js               // Advanced pattern detection engine
 ├── modules/
 │   ├── ScriptAnalyzer.js              // Real-time script threat analysis
 │   ├── NavigationGuardian.js          // Cross-origin navigation protection (modular orchestrator)
@@ -301,12 +293,46 @@ NavigationGuardian has been refactored from a monolithic 1100+ line module into 
 - Runtime overhead: <1ms module instantiation, minimal memory increase
 - Build compatibility: Vite tree-shaking and optimization maintained
 
+**Threat Pattern Architecture:**
+
+The extension uses a centralized threat pattern system to ensure consistency and reduce code duplication:
+
+**Core Module:**
+- **threat-patterns.js** (`src/scripts/utils/threat-patterns.js`): Shared threat pattern definitions and helpers
+
+**Exports:**
+- `AD_NETWORK_DOMAINS[]`: Known malicious ad networks (pubfuture-ad.com, clickadu.com, propellerads.com, popcash.com/net, adexchangeclear.com)
+- `TRACKING_PARAMETERS[]`: Suspicious tracking params (param_4, param_5, clickid, adclick, redirect)
+- `URL_THREAT_PATTERNS{}`: Pre-compiled regex patterns (phpTracking, adNetworks, popUnderKeyword)
+- `THREAT_SCORES{}`: Consistent risk scoring (adexchangeclear: 8, genericAdNetwork: 5, phpTracking: 6, etc.)
+- `getAdNetworkScore(domain)`: Helper function for domain risk scoring
+- `findTrackingParams(urlObj)`: Helper function for URL parameter analysis
+
+**Consumers:**
+- **MaliciousPatternDetector** (`src/scripts/utils/malicious-pattern-detector.js`):
+  - JavaScript code analysis + URL validation for pop-under detection
+  - Uses shared patterns for ad networks and tracking params
+  - Module-specific patterns for pop-under signatures, click hijacking, localStorage abuse
+  - Methods: `analyze(code, threshold)`, `isUrlMalicious(url)`
+
+- **SecurityValidator** (`src/scripts/modules/navigation-guardian/security-validator.js`):
+  - URL security validation + threat analysis for navigation blocking
+  - Uses shared patterns for ad networks and tracking params
+  - Module-specific patterns for unicode attacks, suspicious TLDs, protocol validation
+  - Methods: `validateURL(url)`, `analyzeThreats(url)`, `getThreatLevel(riskScore)`, `getSecurityAnalysis(url)`
+
+**Benefits:**
+- **Single Source of Truth**: Update ad networks/tracking params once, affects both modules
+- **Consistent Risk Scoring**: Same threat = same score across all detection systems
+- **Reduced Duplication**: -800 bytes of duplicated pattern definitions eliminated
+- **Easy Maintenance**: Add new threats to threat-patterns.js, automatically used by both modules
+- **Minimal Bundle Impact**: +0.82KB total (+0.25%) for significant architectural improvement
+
 **Performance Optimization:**
 
 - **Time-Slicing**: Non-blocking execution that respects frame budgets
 - **Chrome API Safety**: Robust Chrome storage operations with retry mechanisms and context validation
 - **Debounced Operations**: Reduced API call frequency through intelligent debouncing
-- **Sequential Pattern Detection**: Simple, efficient element analysis using AdDetectionEngine
 
 **Testing Extension:**
 1. Run `npm run build` to build to `dist/`

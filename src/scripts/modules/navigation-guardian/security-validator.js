@@ -1,3 +1,12 @@
+import {
+  AD_NETWORK_DOMAINS,
+  TRACKING_PARAMETERS,
+  URL_THREAT_PATTERNS,
+  THREAT_SCORES,
+  getAdNetworkScore,
+  findTrackingParams,
+} from "../../utils/threat-patterns.js";
+
 /**
  * SecurityValidator Module - URL and threat validation for NavigationGuardian
  *
@@ -54,25 +63,35 @@ export class SecurityValidator {
 
     /**
      * URL threat patterns with associated risk scores
+     * Combines shared patterns from threat-patterns.js with local SecurityValidator-specific patterns
      * @type {Array<{pattern: RegExp, score: number, threat: string}>}
      * @private
      */
     this.urlThreatPatterns = [
+      // Specific high-severity patterns first (before generic patterns)
       {
         pattern: /adexchangeclear\.com/i,
-        score: 8,
+        score: THREAT_SCORES.adexchangeclear,
         threat: "Known malicious ad network",
       },
+      // Shared patterns from threat-patterns.js
       {
-        pattern: /\.php\?.*param_[45]/i,
-        score: 6,
+        pattern: URL_THREAT_PATTERNS.phpTracking,
+        score: THREAT_SCORES.phpTracking,
         threat: "Ad tracking parameters",
       },
       {
         pattern: /about:blank/i,
-        score: 5,
+        score: THREAT_SCORES.aboutBlank,
         threat: "Blank page (common pop-under technique)",
       },
+      // Generic ad network pattern (after specific patterns)
+      {
+        pattern: URL_THREAT_PATTERNS.adNetworks,
+        score: 5, // Generic score for other ad networks
+        threat: "Known malicious ad network",
+      },
+      // Local SecurityValidator-specific patterns
       { pattern: /doubleclick\.net/i, score: 4, threat: "Ad network domain" },
       {
         pattern: /googlesyndication\.com/i,
@@ -87,18 +106,7 @@ export class SecurityValidator {
       },
     ];
 
-    /**
-     * Suspicious URL query parameters
-     * @type {string[]}
-     * @private
-     */
-    this.suspiciousParams = [
-      "param_4",
-      "param_5",
-      "clickid",
-      "adclick",
-      "redirect",
-    ];
+    // Note: suspiciousParams removed - now use TRACKING_PARAMETERS from threat-patterns.js
   }
 
   /**
@@ -212,15 +220,14 @@ export class SecurityValidator {
       try {
         const urlObj = new URL(url);
 
-        // Check for suspicious query parameters
-        this.suspiciousParams.forEach((param) => {
-          if (urlObj.searchParams.has(param)) {
-            analysis.riskScore += 3;
-            analysis.threats.push({
-              type: `Suspicious parameter: ${param}`,
-              score: 3,
-            });
-          }
+        // Check for suspicious query parameters using shared helper
+        const foundParams = findTrackingParams(urlObj);
+        foundParams.forEach((param) => {
+          analysis.riskScore += THREAT_SCORES.trackingParam;
+          analysis.threats.push({
+            type: `Suspicious parameter: ${param}`,
+            score: THREAT_SCORES.trackingParam,
+          });
         });
 
         // Check for random-looking domains

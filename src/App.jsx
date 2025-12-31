@@ -26,7 +26,6 @@ const initialState = {
   isActive: false,
   protectionSystems: {
     navigationGuard: true,
-    patternRules: true,
     defaultRules: true,
     customRules: true,
     requestBlocking: true,
@@ -51,7 +50,6 @@ const protectionReducer = (state, action) => {
         isActive: action.payload.isActive || false,
         protectionSystems: {
           navigationGuard: action.payload.navigationGuardEnabled !== false,
-          patternRules: action.payload.patternRulesEnabled !== false,
           defaultRules: action.payload.defaultRulesEnabled !== false,
           customRules: action.payload.customRulesEnabled !== false,
           requestBlocking: action.payload.defaultBlockRequestEnabled !== false,
@@ -113,7 +111,6 @@ const storageAdapter = {
         [
           "isActive",
           "domainStats",
-          "patternRulesEnabled",
           "defaultRulesEnabled",
           "defaultBlockRequestEnabled",
           "navigationGuardEnabled",
@@ -132,7 +129,6 @@ const storageAdapter = {
   saveProtectionSystem(system, value) {
     const storageKey = {
       navigationGuard: "navigationGuardEnabled",
-      patternRules: "patternRulesEnabled",
       defaultRules: "defaultRulesEnabled",
       customRules: "customRulesEnabled",
       requestBlocking: "defaultBlockRequestEnabled",
@@ -285,7 +281,6 @@ export default function App() {
         const protectionUpdates = {};
         const protectionStorageMap = {
           navigationGuardEnabled: "navigationGuard",
-          patternRulesEnabled: "patternRules",
           defaultRulesEnabled: "defaultRules",
           customRulesEnabled: "customRules",
           defaultBlockRequestEnabled: "requestBlocking",
