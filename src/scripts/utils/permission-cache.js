@@ -41,14 +41,48 @@ const CONFIG = {
  */
 
 /**
+ * Doubly-Linked List Node for LRU cache
+ * @private
+ * @class
+ */
+class CacheNode {
+  /**
+   * Create a cache node
+   * @param {string} key - Cache key for reverse lookup during eviction
+   * @param {CacheEntry} value - Full cache entry object
+   */
+  constructor(key, value) {
+    this.key = key;
+    this.value = value;
+    this.prev = null;
+    this.next = null;
+  }
+}
+
+/**
  * Permission Cache Class
  *
- * Manages user navigation permission decisions with in-memory + persistent storage
+ * Manages user navigation permission decisions with in-memory + persistent storage.
+ * Uses a hybrid Doubly-Linked List + Hash Map for O(1) lookups and LRU eviction.
+ *
+ * Architecture:
+ * - Hash Map: cacheKey → CacheNode (O(1) lookup)
+ * - Doubly-Linked List: maintains access order (head = MRU, tail = LRU)
+ * - Eviction: O(1) removal of tail node (least recently used)
  */
 export class PermissionCache {
   constructor() {
-    // In-memory cache for fast lookups
+    // Hash Map for O(1) lookup: cacheKey → CacheNode
     this.cache = new Map();
+
+    // Doubly-linked list sentinels for LRU ordering
+    this.head = new CacheNode(null, null);  // MRU (Most Recently Used)
+    this.tail = new CacheNode(null, null);  // LRU (Least Recently Used)
+    this.head.next = this.tail;
+    this.tail.prev = this.head;
+
+    // Size tracking (separate from Map.size for clarity)
+    this.size = 0;
 
     // Statistics tracking
     this.stats = {
@@ -75,6 +109,134 @@ export class PermissionCache {
 
     // Stop timers on page unload
     this.setupUnloadCleanup();
+  }
+
+  /**
+   * Add node to head (mark as most recently used)
+   * @private
+   * @param {CacheNode} node - Node to add
+   */
+  _addToHead(node) {
+    node.prev = this.head;
+    node.next = this.head.next;
+    this.head.next.prev = node;
+    this.head.next = node;
+  }
+
+  /**
+   * Add node to tail (mark as least recently used)
+   * Used during storage restoration to preserve LRU order
+   * @private
+   * @param {CacheNode} node - Node to add
+   */
+  _addToTail(node) {
+    node.prev = this.tail.prev;
+    node.next = this.tail;
+    this.tail.prev.next = node;
+    this.tail.prev = node;
+  }
+
+  /**
+   * Remove node from linked list
+   * @private
+   * @param {CacheNode} node - Node to remove
+   */
+  _removeNode(node) {
+    node.prev.next = node.next;
+    node.next.prev = node.prev;
+    // Nullify pointers to enable garbage collection
+    node.prev = null;
+    node.next = null;
+  }
+
+  /**
+   * Move node to head (LRU promotion)
+   * @private
+   * @param {CacheNode} node - Node to promote
+   */
+  _moveToHead(node) {
+    this._removeNode(node);
+    this._addToHead(node);
+  }
+
+  /**
+   * Remove and return tail node (least recently used)
+   * @private
+   * @returns {CacheNode|null} The removed node, or null if list is empty
+   */
+  _removeTail() {
+    const node = this.tail.prev;
+    if (node === this.head) {
+      return null; // Empty list
+    }
+    this._removeNode(node);
+    return node;
+  }
+
+  /**
+   * Validate DLL integrity (development mode only)
+   * @private
+   * @throws {Error} If DLL invariants are violated
+   */
+  _validateDLL() {
+    // Only run in development mode (check for common dev indicators)
+    if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production') {
+      return;
+    }
+
+    // 1. Validate sentinel links
+    if (this.head.prev !== null) {
+      throw new Error('DLL Integrity Error: head.prev should be null');
+    }
+    if (this.tail.next !== null) {
+      throw new Error('DLL Integrity Error: tail.next should be null');
+    }
+
+    // 2. Count nodes and validate bidirectional links
+    let count = 0;
+    let current = this.head.next;
+    const visited = new Set();
+
+    while (current !== this.tail) {
+      // Check for circular references
+      if (visited.has(current)) {
+        throw new Error('DLL Integrity Error: Circular reference detected');
+      }
+      visited.add(current);
+
+      // Validate bidirectional links
+      if (current.next.prev !== current) {
+        throw new Error('DLL Integrity Error: Broken bidirectional link (forward)');
+      }
+      if (current.prev.next !== current) {
+        throw new Error('DLL Integrity Error: Broken bidirectional link (backward)');
+      }
+
+      // Validate node is in Map
+      if (!this.cache.has(current.key)) {
+        throw new Error(`DLL Integrity Error: Node with key "${current.key}" not in Map`);
+      }
+
+      count++;
+      current = current.next;
+    }
+
+    // 3. Validate node count matches this.size
+    if (count !== this.size) {
+      throw new Error(`DLL Integrity Error: Node count (${count}) != this.size (${this.size})`);
+    }
+
+    // 4. Validate Map size matches this.size
+    if (this.cache.size !== this.size) {
+      throw new Error(`DLL Integrity Error: Map.size (${this.cache.size}) != this.size (${this.size})`);
+    }
+
+    // 5. Validate all Map entries are in DLL
+    for (const [key, node] of this.cache.entries()) {
+      if (!visited.has(node)) {
+        throw new Error(`DLL Integrity Error: Map entry "${key}" not found in DLL`);
+      }
+    }
   }
 
   /**
@@ -143,25 +305,30 @@ export class PermissionCache {
       this.stats.cacheMisses++;
       return null;
     }
-    const entry = this.cache.get(key);
 
-    if (!entry) {
+    const node = this.cache.get(key);  // Returns CacheNode
+    if (!node) {
       this.stats.cacheMisses++;
       return null;
     }
 
     // Check expiration
-    if (Date.now() > entry.expiresAt) {
-      this.cache.delete(key);
+    if (Date.now() > node.value.expiresAt) {
+      this._removeNode(node);  // Remove from DLL
+      this.cache.delete(key);  // Remove from Map
+      this.size--;             // Decrement size
       this.stats.cacheMisses++;
       return null;
     }
 
+    // LRU: Mark as recently used
+    this._moveToHead(node);
+
     this.stats.cacheHits++;
     return {
-      decision: entry.decision,
+      decision: node.value.decision,
       isExpired: false,
-      metadata: entry.metadata
+      metadata: node.value.metadata
     };
   }
 
@@ -209,8 +376,8 @@ export class PermissionCache {
       });
       return;
     }
-    const { persist = false, metadata = {} } = options;
 
+    const { persist = false, metadata = {} } = options;
     const ttl = persist ? CONFIG.PERSISTENT_TTL_MS : CONFIG.DEFAULT_TTL_MS;
     const timestamp = Date.now();
 
@@ -222,15 +389,30 @@ export class PermissionCache {
       metadata: metadata
     };
 
-    // Update in-memory cache
-    this.cache.set(key, entry);
-    this.stats.totalEntries = this.cache.size;
+    const existingNode = this.cache.get(key);
 
-    // Enforce size limit (LRU eviction)
+    if (existingNode) {
+      // Update existing entry and move to head
+      existingNode.value = entry;
+      this._moveToHead(existingNode);
+    } else {
+      // Create new node and add to head
+      const newNode = new CacheNode(key, entry);
+      this.cache.set(key, newNode);
+      this._addToHead(newNode);
+      this.size++;
+    }
+
+    this.stats.totalEntries = this.size;
+
+    // Enforce size limit (now O(1) amortized)
     this.enforceSizeLimit();
 
     // Debounced sync to storage
     this.scheduleStorageSync();
+
+    // Validate DLL integrity (development mode only)
+    this._validateDLL();
   }
 
   /**
@@ -256,26 +438,38 @@ export class PermissionCache {
    */
   cleanExpired() {
     const now = Date.now();
-    let removed = 0;
+    const keysToRemove = [];
 
-    for (const [key, entry] of this.cache.entries()) {
-      if (now > entry.expiresAt) {
-        this.cache.delete(key);
-        removed++;
+    // Collect expired keys first (avoid iterator invalidation)
+    for (const [key, node] of this.cache.entries()) {
+      if (now > node.value.expiresAt) {
+        keysToRemove.push({ key, node });
       }
     }
 
+    // Then remove them
+    for (const { key, node } of keysToRemove) {
+      this._removeNode(node);  // Remove from DLL
+      this.cache.delete(key);  // Remove from Map
+      this.size--;
+    }
+
+    const removed = keysToRemove.length;
+
     if (removed > 0) {
-      this.stats.totalEntries = this.cache.size;
+      this.stats.totalEntries = this.size;
       console.log(`PermissionCache: Cleaned ${removed} expired entries`);
     }
+
+    // Validate DLL integrity (development mode only)
+    this._validateDLL();
 
     return removed;
   }
 
   /**
    * Enforce maximum cache size using LRU eviction
-   * Evicts oldest entries by timestamp when size exceeds limit
+   * Evicts least recently used entries when size exceeds limit
    *
    * @private
    */
@@ -283,29 +477,32 @@ export class PermissionCache {
     // Clean expired first (free space without evicting valid entries)
     this.cleanExpired();
 
-    if (this.cache.size <= CONFIG.MAX_CACHE_SIZE) {
+    if (this.size <= CONFIG.MAX_CACHE_SIZE) {
       return; // Within limit
     }
 
-    // Calculate how many to evict
-    const excessCount = this.cache.size - CONFIG.MAX_CACHE_SIZE;
+    // Evict LRU entries (O(1) per eviction)
+    let evicted = 0;
+    while (this.size > CONFIG.MAX_CACHE_SIZE) {
+      const node = this._removeTail();  // O(1) - remove from DLL
+      if (!node) {
+        break; // Empty list (shouldn't happen)
+      }
 
-    // Sort entries by timestamp (oldest first)
-    const entries = Array.from(this.cache.entries())
-      .map(([key, entry]) => ({ key, timestamp: entry.timestamp }))
-      .sort((a, b) => a.timestamp - b.timestamp);
-
-    // Evict oldest entries
-    const toRemove = entries.slice(0, excessCount);
-
-    for (const { key } of toRemove) {
-      this.cache.delete(key);
+      this.cache.delete(node.key);  // O(1) - remove from Map
+      this.size--;
       this.stats.evictions++;
+      evicted++;
     }
 
-    this.stats.totalEntries = this.cache.size;
+    this.stats.totalEntries = this.size;
 
-    console.log(`PermissionCache: Evicted ${excessCount} LRU entries (size limit: ${CONFIG.MAX_CACHE_SIZE})`);
+    if (evicted > 0) {
+      console.log(`PermissionCache: Evicted ${evicted} LRU entries (size limit: ${CONFIG.MAX_CACHE_SIZE})`);
+    }
+
+    // Validate DLL integrity after evictions (development mode only)
+    this._validateDLL();
   }
 
   /**
@@ -357,10 +554,13 @@ export class PermissionCache {
     }
 
     try {
-      // Convert Map to plain object for storage
+      // Convert linked list to object in LRU order (head → tail)
       const entries = {};
-      for (const [key, entry] of this.cache.entries()) {
-        entries[key] = entry;
+      let current = this.head.next;
+
+      while (current !== this.tail) {
+        entries[current.key] = current.value;
+        current = current.next;
       }
 
       const data = {
@@ -386,7 +586,7 @@ export class PermissionCache {
       this.stats.storageSync++;
       this.stats.lastSyncTime = Date.now();
 
-      console.log(`PermissionCache: Synced ${this.cache.size} entries to storage`);
+      console.log(`PermissionCache: Synced ${this.size} entries to storage`);
     } catch (error) {
       console.error('PermissionCache: Failed to sync to storage:', error);
       // Don't throw - graceful degradation (cache continues in-memory)
@@ -417,7 +617,7 @@ export class PermissionCache {
         return;
       }
 
-      // Restore entries to Map
+      // Load entries and build DLL
       const entries = data.entries || {};
       const now = Date.now();
       let loaded = 0;
@@ -447,7 +647,11 @@ export class PermissionCache {
           normalized++;
         }
 
-        this.cache.set(normalizedKey, entry);
+        // Create node and add to cache
+        const node = new CacheNode(normalizedKey, entry);
+        this.cache.set(normalizedKey, node);
+        this._addToTail(node);  // Add to tail to preserve storage order (MRU -> LRU)
+        this.size++;
         loaded++;
       }
 
@@ -456,7 +660,7 @@ export class PermissionCache {
         this.stats = { ...this.stats, ...data.stats };
       }
 
-      this.stats.totalEntries = this.cache.size;
+      this.stats.totalEntries = this.size;
 
       console.log(
         `PermissionCache: Loaded ${loaded} entries from storage (${expired} expired, ${invalid} invalid, ${normalized} normalized)`
@@ -562,9 +766,25 @@ export class PermissionCache {
    */
   async clear() {
     this.cache.clear();
-    this.stats.totalEntries = 0;
+
+    // Reset linked list to empty state
+    this.head.next = this.tail;
+    this.tail.prev = this.head;
+    this.size = 0;
+
+    this.stats = {
+      totalEntries: 0,
+      cacheHits: 0,
+      cacheMisses: 0,
+      evictions: 0,
+      storageSync: 0,
+      lastSyncTime: 0
+    };
 
     console.log('PermissionCache: Cache cleared');
+
+    // Validate DLL integrity (development mode only)
+    this._validateDLL();
 
     // Sync empty cache to storage
     await this.syncToStorage();
@@ -579,7 +799,7 @@ export class PermissionCache {
   getStats() {
     return {
       ...this.stats,
-      cacheSize: this.cache.size,
+      cacheSize: this.size,
       hitRate: this.stats.cacheHits + this.stats.cacheMisses > 0
         ? (this.stats.cacheHits / (this.stats.cacheHits + this.stats.cacheMisses) * 100).toFixed(2) + '%'
         : '0%',

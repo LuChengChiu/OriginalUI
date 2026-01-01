@@ -156,6 +156,7 @@ export default defineConfig(({ mode }) => ({
       closeBundle() {
         copyFileSync("manifest.json", "dist/manifest.json");
         cpSync("icons", "dist/icons", { recursive: true });
+        cpSync("fonts", "dist/fonts", { recursive: true });
         cpSync("src/data", "dist/data", { recursive: true });
         // Copy network-blocking data (static rulesets) to match manifest path
         cpSync("src/scripts/modules/network-blocking/data", "dist/network-blocking/data", { recursive: true });
