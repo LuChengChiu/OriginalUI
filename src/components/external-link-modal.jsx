@@ -96,14 +96,17 @@ export default function ExternalLinkModal({
 
   const threatLevel = getThreatLevel(riskScore);
 
+  // Remember choice state
+  const [rememberChoice, setRememberChoice] = React.useState(false);
+
   // Handle user decisions
   const handleAllow = () => {
-    onAllow?.();
+    onAllow?.(rememberChoice); // Pass remember flag
     onClose?.();
   };
 
   const handleDeny = () => {
-    onDeny?.();
+    onDeny?.(rememberChoice); // Pass remember flag
     onClose?.();
   };
 
@@ -144,6 +147,23 @@ export default function ExternalLinkModal({
           />
 
           <URLDisplay url={targetURL} />
+
+          {/* Remember choice checkbox */}
+          <div className="flex items-center gap-2 mt-3 mb-1">
+            <input
+              type="checkbox"
+              id="remember-choice"
+              checked={rememberChoice}
+              onChange={(e) => setRememberChoice(e.target.checked)}
+              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer"
+            />
+            <label
+              htmlFor="remember-choice"
+              className="text-sm text-gray-600 cursor-pointer select-none"
+            >
+              Remember this choice for 30 days
+            </label>
+          </div>
         </Dialog.Main>
 
         <Dialog.Footer>
@@ -253,9 +273,9 @@ export const showExternalLinkModal = async (config) => {
           }
         };
 
-        const handleResult = (allowed) => {
+        const handleResult = (allowed, remember = false) => {
           cleanup();
-          resolve(allowed);
+          resolve({ allowed, remember }); // Return object with both values
         };
 
         // Step 5: Render modal with Shadow DOM portal target
@@ -264,9 +284,9 @@ export const showExternalLinkModal = async (config) => {
             isOpen: true,
             config: config,
             portalTarget: portalTarget, // NEW: Pass Shadow DOM target
-            onAllow: () => handleResult(true),
-            onDeny: () => handleResult(false),
-            onClose: () => handleResult(false),
+            onAllow: (remember) => handleResult(true, remember),
+            onDeny: (remember) => handleResult(false, remember),
+            onClose: () => handleResult(false, false),
           })
         );
 
@@ -278,7 +298,7 @@ export const showExternalLinkModal = async (config) => {
           shadowDOMSetup.container.parentNode.removeChild(shadowDOMSetup.container);
         }
 
-        resolve(false); // Default to deny on error
+        resolve({ allowed: false, remember: false }); // Default to deny on error
       }
     };
 

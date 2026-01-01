@@ -2,6 +2,8 @@
 // Runs in the page's main world to intercept JavaScript navigation
 
 import { MaliciousPatternDetector } from "./utils/malicious-pattern-detector.js";
+import { PermissionCache } from "./utils/permission-cache.js";
+import { showBlockedToast } from "./ui/toast-notification.js";
 
 (function () {
   "use strict";
@@ -46,6 +48,162 @@ import { MaliciousPatternDetector } from "./utils/malicious-pattern-detector.js"
       'location.href': 0
     }
   };
+
+  // ============================================================================
+  // Permission Cache System - Fast-Path Decision Layer
+  // ============================================================================
+
+  // In-memory permission cache instance (initialized from chrome.storage)
+  let inMemoryPermissionCache = null;
+
+  /**
+   * Initialize permission cache from chrome.storage
+   * Called asynchronously on script load - cache starts empty and populates in background
+   */
+  async function initializePermissionCache() {
+    try {
+      inMemoryPermissionCache = new PermissionCache();
+      await inMemoryPermissionCache.syncFromStorage();
+      console.log('Navigation Guardian: Permission cache initialized');
+    } catch (error) {
+      console.error('Navigation Guardian: Failed to initialize permission cache:', error);
+      // Graceful degradation - continue without cache
+      inMemoryPermissionCache = new PermissionCache(); // Empty cache
+    }
+  }
+
+  /**
+   * Fast synchronous decision layer for navigation attempts
+   * Target: <3ms average decision time
+   *
+   * @param {string} url - Target navigation URL
+   * @param {string} navType - Navigation type ('window.open', 'location.assign', etc.)
+   * @param {string} name - Window name (for window.open only)
+   * @param {string} features - Window features (for window.open only)
+   * @returns {Object} Decision object: { decision: 'ALLOW'|'BLOCK'|'NEEDS_MODAL', reason, metadata }
+   */
+  function quickNavigationDecision(url, navType, name, features) {
+    // 1. Same-origin → ALLOW immediately (0ms check)
+    if (!isCrossOrigin(url)) {
+      return { decision: 'ALLOW', reason: 'same-origin' };
+    }
+
+    // 2. Check permission cache (1ms lookup)
+    const sourceOrigin = window.location.origin;
+    try {
+      const targetOrigin = new URL(url, window.location.href).origin;
+      const cached = inMemoryPermissionCache?.getSync(sourceOrigin, targetOrigin);
+      if (cached && !cached.isExpired) {
+        return {
+          decision: cached.decision === 'ALLOW' ? 'ALLOW' : 'BLOCK',
+          reason: 'cached-permission',
+          metadata: cached.metadata
+        };
+      }
+    } catch (e) {
+      // Invalid URL - continue to other checks
+    }
+
+    // 3. Pop-under detection (2ms) - only for window.open
+    if (navType === 'window.open') {
+      const analysis = isPopUnderBehavior(url, name, features);
+      if (analysis.isPopUnder) {
+        return {
+          decision: 'BLOCK',
+          reason: 'pop-under',
+          metadata: analysis
+        };
+      }
+    }
+
+    // 4. Malicious URL patterns (2ms)
+    if (MaliciousPatternDetector.isUrlMalicious(url || '')) {
+      return { decision: 'BLOCK', reason: 'malicious-pattern' };
+    }
+
+    // 5. Risk-based for location.* methods (location.href less risky than window.open)
+    if (navType.startsWith('location.')) {
+      const riskLevel = assessLocationRisk(url);
+      if (riskLevel === 'LOW') {
+        return { decision: 'ALLOW', reason: 'low-risk-spa-navigation' };
+      }
+      if (riskLevel === 'HIGH') {
+        return { decision: 'BLOCK', reason: 'high-risk-navigation' };
+      }
+    }
+
+    // 6. Uncertain → needs modal
+    return { decision: 'NEEDS_MODAL', reason: 'cross-origin-unknown' };
+  }
+
+  /**
+   * Risk assessment for location.* navigation methods
+   * Helps distinguish legitimate SPA navigation from malicious redirects
+   *
+   * @param {string} url - Target navigation URL
+   * @returns {string} Risk level: 'LOW', 'MEDIUM', or 'HIGH'
+   */
+  function assessLocationRisk(url) {
+    try {
+      const urlObj = new URL(url, window.location.href);
+
+      // HIGH risk indicators
+      if (MaliciousPatternDetector.isUrlMalicious(url)) {
+        return 'HIGH'; // Matches ad networks, tracking params, etc.
+      }
+      if (/^(data|blob|javascript):/.test(urlObj.protocol)) {
+        return 'HIGH'; // Dangerous protocols
+      }
+
+      // LOW risk indicators (common SPA patterns and trusted domains)
+      const trustedTLDs = ['.gov', '.edu', '.org'];
+      if (trustedTLDs.some(tld => urlObj.hostname.endsWith(tld))) {
+        return 'LOW'; // Government, education, organization sites
+      }
+
+      // Check if URL looks like OAuth/SSO callback (common SPA pattern)
+      const oauthPatterns = [
+        /oauth/i,
+        /callback/i,
+        /auth/i,
+        /login/i,
+        /sso/i
+      ];
+      if (oauthPatterns.some(pattern => pattern.test(urlObj.pathname))) {
+        return 'LOW'; // Likely legitimate authentication flow
+      }
+
+      // MEDIUM risk (default - show modal for confirmation)
+      return 'MEDIUM';
+    } catch (e) {
+      // Invalid URL = high risk
+      return 'HIGH';
+    }
+  }
+
+  // Listen for cache updates from content script
+  window.addEventListener('message', (event) => {
+    if (event.source !== window) return;
+
+    if (event.data?.type === 'NAV_CACHE_UPDATE') {
+      const { sourceOrigin, targetOrigin, decision, persistent } = event.data;
+
+      if (inMemoryPermissionCache) {
+        inMemoryPermissionCache.setSync(
+          sourceOrigin,
+          targetOrigin,
+          decision,
+          { persist: persistent }
+        );
+
+        // Debounced sync to chrome.storage happens automatically
+        console.log(`Navigation Guardian: Permission cached (${decision}) for ${targetOrigin}`);
+      }
+    }
+  });
+
+  // Initialize cache asynchronously (non-blocking)
+  initializePermissionCache().catch(console.error);
 
   // Report stats to content script via postMessage
   function reportStats() {
@@ -552,72 +710,240 @@ import { MaliciousPatternDetector } from "./utils/malicious-pattern-detector.js"
     };
   }
 
-  // Enhanced window.open override with aggressive pop-under protection
+  // ============================================================================
+  // Pending Window Proxy - Solves OAuth/Payment/Pop-up Window Reference Issues
+  // ============================================================================
+
+  /**
+   * Pending Window Proxy Class
+   *
+   * Returns a Proxy object immediately (not null) that queues operations
+   * until async permission check resolves. Solves the fundamental problem:
+   * - window.open() must return synchronously
+   * - Permission check requires async user interaction
+   *
+   * Fixes: OAuth flows, payment gateways, legitimate pop-ups
+   */
+  class PendingWindowProxy {
+    constructor(url, name, features) {
+      this.url = url;
+      this.name = name;
+      this.features = features;
+      this.realWindow = null;
+      this.pendingOps = [];
+      this.resolved = false;
+      this.allowed = false;
+
+      // Start async permission check in background
+      this.permissionPromise = this.checkPermission();
+    }
+
+    async checkPermission() {
+      try {
+        const allowed = await safeCheckNavigationPermission(this.url, 'window.open');
+        this.resolved = true;
+        this.allowed = allowed;
+
+        if (allowed) {
+          // Open real window and replay queued operations
+          this.realWindow = originalWindowOpen.call(window, this.url, this.name, this.features);
+
+          if (this.realWindow) {
+            this.replayQueuedOps();
+          } else {
+            console.warn('PendingWindowProxy: Failed to open real window (popup blocked?)');
+          }
+        } else {
+          // Denied - clear pending ops (proxy becomes no-op)
+          console.log('PendingWindowProxy: Navigation denied by user');
+          this.pendingOps = [];
+        }
+      } catch (error) {
+        console.error('PendingWindowProxy: Permission check failed:', error);
+        this.resolved = true;
+        this.allowed = false;
+        this.pendingOps = [];
+      }
+    }
+
+    replayQueuedOps() {
+      if (!this.realWindow) {
+        console.warn('PendingWindowProxy: Cannot replay ops - no real window');
+        return;
+      }
+
+      console.log(`PendingWindowProxy: Replaying ${this.pendingOps.length} queued operations`);
+
+      for (const op of this.pendingOps) {
+        try {
+          op(this.realWindow);
+        } catch (e) {
+          console.warn('PendingWindowProxy: Failed to replay operation:', e);
+        }
+      }
+
+      this.pendingOps = [];
+    }
+
+    createProxy() {
+      const self = this;
+
+      return new Proxy(this, {
+        get(target, prop) {
+          // Handle common property checks
+          if (prop === 'closed') {
+            if (!target.resolved) return false; // Pending = not closed
+            return target.realWindow?.closed ?? true;
+          }
+
+          if (prop === 'location') {
+            return target.realWindow?.location ?? null;
+          }
+
+          if (prop === 'document') {
+            return target.realWindow?.document ?? null;
+          }
+
+          if (prop === 'opener') {
+            return target.realWindow?.opener ?? window;
+          }
+
+          if (prop === 'name') {
+            return target.realWindow?.name ?? target.name;
+          }
+
+          // Method calls - queue if not resolved
+          if (typeof window[prop] === 'function' || !target.resolved) {
+            return (...args) => {
+              if (target.resolved && target.realWindow) {
+                // Forward to real window
+                try {
+                  return target.realWindow[prop]?.(...args);
+                } catch (e) {
+                  console.warn(`PendingWindowProxy: Failed to call ${String(prop)}:`, e);
+                  return undefined;
+                }
+              } else if (!target.resolved) {
+                // Queue operation for later replay
+                target.pendingOps.push(win => {
+                  if (win && typeof win[prop] === 'function') {
+                    try {
+                      win[prop](...args);
+                    } catch (e) {
+                      console.warn(`PendingWindowProxy: Failed to replay ${String(prop)}:`, e);
+                    }
+                  }
+                });
+                return undefined;
+              }
+            };
+          }
+
+          // Forward property access
+          return target.realWindow?.[prop];
+        },
+
+        set(target, prop, value) {
+          if (!target.resolved) {
+            // Queue property set
+            target.pendingOps.push(win => {
+              if (win) {
+                try {
+                  win[prop] = value;
+                } catch (e) {
+                  console.warn(`PendingWindowProxy: Failed to set ${String(prop)}:`, e);
+                }
+              }
+            });
+            return true;
+          }
+
+          if (target.realWindow) {
+            try {
+              target.realWindow[prop] = value;
+            } catch (e) {
+              console.warn(`PendingWindowProxy: Failed to set ${String(prop)}:`, e);
+            }
+          }
+          return true;
+        }
+      });
+    }
+  }
+
+  // Enhanced window.open override with fast-path + proxy pattern
   overrideStatus.windowOpen = safeOverride(
     window,
     "open",
     function (url, name, features) {
-      const analysis = isPopUnderBehavior(url, name, features);
+      // Fast-path decision layer (<3ms average)
+      const decision = quickNavigationDecision(url, 'window.open', name, features);
 
-      // Block obvious pop-unders immediately
-      if (analysis.isPopUnder) {
-        console.log("Navigation Guardian: Blocked pop-under attempt:", {
-          url: url,
-          score: analysis.score,
-          factors: analysis.factors,
-        });
-
-        // Show a brief notification
-        console.warn("🛡️ OriginalUI blocked a pop-under advertisement");
-
-        return null;
-      }
-
-      // Allow same-origin navigation
-      if (!isCrossOrigin(url)) {
+      if (decision.decision === 'ALLOW') {
+        // ✅ Allowed - return real window immediately
+        console.log(`Navigation Guardian: Allowing window.open (${decision.reason}):`, url);
         return originalWindowOpen.call(this, url, name, features);
       }
 
-      // For cross-origin URLs that aren't obvious pop-unders, check permission
-      safeCheckNavigationPermission(url, 'window.open')
-        .then((allowed) => {
-          if (allowed) {
-            originalWindowOpen.call(window, url, name, features);
-          }
-        })
-        .catch((error) => {
-          // This should never happen since safeCheckNavigationPermission handles all errors,
-          // but add defensive catch just in case
-          console.error('Navigation Guardian: Unexpected error in window.open:', error);
-          reportPermissionError(error, url, 'window.open', true);
-          // Fail-secure: deny navigation
-        });
+      if (decision.decision === 'BLOCK') {
+        // ❌ Blocked - return null immediately
+        console.warn(`🛡️ OriginalUI blocked window.open (${decision.reason}):`, url);
+        if (decision.metadata) {
+          console.log('Block details:', decision.metadata);
+        }
+        return null;
+      }
 
-      // Return null for blocked navigation
-      return null;
+      // 🔄 NEEDS_MODAL - Return proxy that resolves async
+      console.log(`Navigation Guardian: Creating pending proxy for window.open (${decision.reason}):`, url);
+      const proxy = new PendingWindowProxy(url, name, features);
+      return proxy.createProxy();
     },
     "method"
   );
 
-  // Override location.assign (may fail on some sites)
+
+  // Override location.assign with fast-path + risk-based strategy
   if (originalLocationAssign) {
     overrideStatus.locationAssign = safeOverride(
       window.location,
       "assign",
       function (url) {
-        if (!isCrossOrigin(url)) {
+        // Fast-path decision layer
+        const decision = quickNavigationDecision(url, 'location.assign');
+
+        if (decision.decision === 'ALLOW') {
+          // ✅ Allowed - navigate immediately
+          console.log(`Navigation Guardian: Allowing location.assign (${decision.reason}):`, url);
           return originalLocationAssign.call(this, url);
         }
 
+        if (decision.decision === 'BLOCK') {
+          // ❌ Blocked - prevent navigation + show toast
+          console.warn(`🛡️ OriginalUI blocked location.assign (${decision.reason}):`, url);
+          showBlockedToast(url, decision.reason);
+          return; // Prevent navigation
+        }
+
+        // 🔄 NEEDS_MODAL - Check permission async (current behavior preserved)
         safeCheckNavigationPermission(url, 'location.assign')
           .then((allowed) => {
             if (allowed) {
               originalLocationAssign.call(window.location, url);
+
+              // Cache decision for future navigations
+              const sourceOrigin = window.location.origin;
+              try {
+                const targetOrigin = new URL(url, window.location.href).origin;
+                inMemoryPermissionCache?.setSync(sourceOrigin, targetOrigin, 'ALLOW', { persist: false });
+              } catch (e) {
+                // Invalid URL - ignore cache
+              }
             }
           })
           .catch((error) => {
             console.error('Navigation Guardian: Unexpected error in location.assign:', error);
-            reportPermissionError(error, url, 'location.assign', true);
+            reportPermissionError(error, url, 'location.assign', false);
             // Fail-secure: deny navigation
           });
       },
@@ -625,25 +951,47 @@ import { MaliciousPatternDetector } from "./utils/malicious-pattern-detector.js"
     );
   }
 
-  // Override location.replace (may fail on some sites)
+  // Override location.replace with fast-path + risk-based strategy
   if (originalLocationReplace) {
     overrideStatus.locationReplace = safeOverride(
       window.location,
       "replace",
       function (url) {
-        if (!isCrossOrigin(url)) {
+        // Fast-path decision layer
+        const decision = quickNavigationDecision(url, 'location.replace');
+
+        if (decision.decision === 'ALLOW') {
+          // ✅ Allowed - navigate immediately
+          console.log(`Navigation Guardian: Allowing location.replace (${decision.reason}):`, url);
           return originalLocationReplace.call(this, url);
         }
 
+        if (decision.decision === 'BLOCK') {
+          // ❌ Blocked - prevent navigation + show toast
+          console.warn(`🛡️ OriginalUI blocked location.replace (${decision.reason}):`, url);
+          showBlockedToast(url, decision.reason);
+          return; // Prevent navigation
+        }
+
+        // 🔄 NEEDS_MODAL - Check permission async (current behavior preserved)
         safeCheckNavigationPermission(url, 'location.replace')
           .then((allowed) => {
             if (allowed) {
               originalLocationReplace.call(window.location, url);
+
+              // Cache decision for future navigations
+              const sourceOrigin = window.location.origin;
+              try {
+                const targetOrigin = new URL(url, window.location.href).origin;
+                inMemoryPermissionCache?.setSync(sourceOrigin, targetOrigin, 'ALLOW', { persist: false });
+              } catch (e) {
+                // Invalid URL - ignore cache
+              }
             }
           })
           .catch((error) => {
             console.error('Navigation Guardian: Unexpected error in location.replace:', error);
-            reportPermissionError(error, url, 'location.replace', true);
+            reportPermissionError(error, url, 'location.replace', false);
             // Fail-secure: deny navigation
           });
       },
@@ -651,7 +999,7 @@ import { MaliciousPatternDetector } from "./utils/malicious-pattern-detector.js"
     );
   }
 
-  // Override location.href setter (often fails due to browser security)
+  // Override location.href setter with fast-path + risk-based strategy
   if (originalHrefDescriptor && originalHrefDescriptor.set) {
     overrideStatus.locationHref = safeDefineProperty(
       window.location,
@@ -659,14 +1007,36 @@ import { MaliciousPatternDetector } from "./utils/malicious-pattern-detector.js"
       {
         get: originalHrefDescriptor.get,
         set: function (url) {
-          if (!isCrossOrigin(url)) {
+          // Fast-path decision layer
+          const decision = quickNavigationDecision(url, 'location.href');
+
+          if (decision.decision === 'ALLOW') {
+            // ✅ Allowed - navigate immediately
+            console.log(`Navigation Guardian: Allowing location.href (${decision.reason}):`, url);
             return originalHrefDescriptor.set.call(this, url);
           }
 
+          if (decision.decision === 'BLOCK') {
+            // ❌ Blocked - prevent navigation + show toast
+            console.warn(`🛡️ OriginalUI blocked location.href (${decision.reason}):`, url);
+            showBlockedToast(url, decision.reason);
+            return; // Prevent navigation
+          }
+
+          // 🔄 NEEDS_MODAL - Check permission async (current behavior preserved)
           safeCheckNavigationPermission(url, 'location.href')
             .then((allowed) => {
               if (allowed) {
                 originalHrefDescriptor.set.call(window.location, url);
+
+                // Cache decision for future navigations
+                const sourceOrigin = window.location.origin;
+                try {
+                  const targetOrigin = new URL(url, window.location.href).origin;
+                  inMemoryPermissionCache?.setSync(sourceOrigin, targetOrigin, 'ALLOW', { persist: false });
+                } catch (e) {
+                  // Invalid URL - ignore cache
+                }
               }
             })
             .catch((error) => {

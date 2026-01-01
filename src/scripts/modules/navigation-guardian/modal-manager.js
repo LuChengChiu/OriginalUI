@@ -127,7 +127,7 @@ export class ModalManager {
    * @param {number} [config.threatDetails.riskScore] - Risk score (0-20+)
    * @param {Array} [config.threatDetails.threats] - Array of detected threats
    * @param {boolean} [config.threatDetails.isPopUnder] - True if pop-under detected
-   * @returns {Promise<boolean>} Promise that resolves with user decision (true=allow, false=block)
+   * @returns {Promise<Object>} Promise that resolves with {allowed: boolean, remember: boolean}
    */
   async showConfirmationModal(config) {
     const { url: targetURL, threatDetails = null } = config;
@@ -137,7 +137,7 @@ export class ModalManager {
       console.warn(
         "OriginalUI: Navigation modal already exists, ignoring duplicate"
       );
-      return false; // Default to deny for safety
+      return { allowed: false, remember: false }; // Default to deny for safety
     }
 
     // Validate URL for security before display (with error handling)
@@ -165,16 +165,16 @@ export class ModalManager {
       // Set active modal reference to config (for duplicate prevention)
       this.activeModal = modalConfig;
 
-      // Show React modal and await user decision
-      const userDecision = await showExternalLinkModal(modalConfig);
+      // Show React modal and await user decision (returns {allowed, remember})
+      const result = await showExternalLinkModal(modalConfig);
 
       // Clear active modal flag
       this.activeModal = null;
 
-      // Call statistics callback
+      // Call statistics callback with full result
       if (this.statisticsCallback) {
         try {
-          this.statisticsCallback(userDecision);
+          this.statisticsCallback(result);
         } catch (callbackError) {
           console.error(
             "OriginalUI: Error in statistics callback:",
@@ -187,32 +187,32 @@ export class ModalManager {
         "OriginalUI: Navigation Guardian modal result for",
         targetURL,
         ":",
-        userDecision
+        result
       );
-      return userDecision;
+      return result;
     } catch (error) {
       console.error("OriginalUI: Error showing React modal:", error);
 
       // Clear active modal flag on error
       this.activeModal = null;
 
-      // Return false (deny) for safety
-      return false;
+      // Return deny with no remember for safety
+      return { allowed: false, remember: false };
     }
   }
 
   /**
    * Legacy method for backward compatibility with NavigationGuardian
    * @param {string} targetURL - The target URL
-   * @param {Function} callback - Callback function with user decision
+   * @param {Function} callback - Callback function with {allowed, remember} result object
    * @param {Object} threatDetails - Optional threat analysis details
    * @deprecated Use showConfirmationModal() instead
    */
   showNavigationModal(targetURL, callback, threatDetails = null) {
     this.showConfirmationModal({ url: targetURL, threatDetails })
-      .then((allowed) => {
+      .then((result) => {
         try {
-          callback(allowed);
+          callback(result); // Pass full result object {allowed, remember}
         } catch (callbackError) {
           console.error("OriginalUI: Error in legacy callback:", callbackError);
           // Callback error handling - error already logged, no further action needed
@@ -221,7 +221,7 @@ export class ModalManager {
       .catch((error) => {
         console.error("OriginalUI: Modal error:", error);
         try {
-          callback(false); // Default to deny for safety
+          callback({ allowed: false, remember: false }); // Default to deny for safety
         } catch (callbackError) {
           console.error(
             "OriginalUI: Error in legacy callback (fallback):",

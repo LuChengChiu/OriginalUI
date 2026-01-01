@@ -403,10 +403,48 @@ export class NavigationGuardian {
           return;
         }
 
-        // Submit sanitized form (prevents XSS via event handlers for all forms)
-        document.body.appendChild(safeForm);
-        safeForm.submit();
-        document.body.removeChild(safeForm);
+        // Submit sanitized form with guaranteed cleanup to prevent DOM leaks
+        try {
+          if (!document.body) {
+            throw new Error("Document body not available for form submission");
+          }
+
+          document.body.appendChild(safeForm);
+
+          try {
+            safeForm.submit();
+
+            // Only remove form if target is _blank (page won't navigate away)
+            // For _self target, form will be cleaned up by page navigation
+            if (safeForm.target === "_blank") {
+              // Small delay to ensure submission completes before cleanup
+              setTimeout(() => {
+                if (safeForm.parentNode) {
+                  document.body.removeChild(safeForm);
+                }
+              }, 100);
+            }
+          } catch (submitError) {
+            // Form submission failed - clean up immediately
+            if (safeForm.parentNode) {
+              document.body.removeChild(safeForm);
+            }
+            throw submitError;
+          }
+        } catch (error) {
+          console.error("NavigationGuardian: Form submission error:", error);
+          // Ensure form is removed on any error
+          if (safeForm?.parentNode) {
+            try {
+              document.body.removeChild(safeForm);
+            } catch (cleanupError) {
+              console.warn(
+                "NavigationGuardian: Form cleanup failed:",
+                cleanupError
+              );
+            }
+          }
+        }
       }
     });
   }
@@ -505,10 +543,37 @@ export class NavigationGuardian {
 
         this.showNavigationModal(
           url,
-          (userAllowed) => {
+          (result) => {
+            // Destructure result object {allowed, remember}
+            const { allowed: userAllowed, remember } = result;
+
             // Remove from pending map and update stats
             if (this.pendingModalKeys.delete(messageId)) {
               this.modalCacheStats.currentPending--;
+            }
+
+            // If remember is true, send cache update to injected script
+            if (remember) {
+              const sourceOrigin = window.location.origin;
+              try {
+                const targetOrigin = new URL(url, window.location.href).origin;
+
+                // Send cache update message to injected-script
+                window.postMessage(
+                  {
+                    type: "NAV_CACHE_UPDATE",
+                    sourceOrigin: sourceOrigin,
+                    targetOrigin: targetOrigin,
+                    decision: userAllowed ? 'ALLOW' : 'DENY',
+                    persistent: true  // 30-day TTL
+                  },
+                  "*"
+                );
+
+                console.log(`NavigationGuardian: Cached permission decision (${userAllowed ? 'ALLOW' : 'DENY'}) for ${targetOrigin}`);
+              } catch (e) {
+                console.warn('NavigationGuardian: Failed to send cache update:', e);
+              }
             }
 
             // Send response with the user's decision
@@ -858,25 +923,52 @@ export class NavigationGuardian {
   }
 
   /**
-   * Start modal cache cleanup timer
+   * Start modal cache cleanup timer with automatic lifecycle management
+   * Uses WeakRef to prevent memory leaks if cleanup is never called
+   * Automatically stops timer when extension context becomes invalid
    */
   startModalCacheCleanup() {
     if (this.modalCleanupTimer) {
+      console.warn("OriginalUI: Modal cleanup timer already running");
       return;
     }
 
+    // Use WeakRef to prevent memory leak if cleanup never called
+    const guardianRef = new WeakRef(this);
+
     this.modalCleanupTimer = setInterval(() => {
-      this.cleanupExpiredModals();
+      const guardian = guardianRef.deref();
+
+      // Auto-cleanup if guardian was garbage collected
+      if (!guardian) {
+        clearInterval(this.modalCleanupTimer);
+        console.log(
+          "OriginalUI: Auto-stopped cleanup timer (guardian garbage collected)"
+        );
+        return;
+      }
+
+      // Auto-cleanup if extension context invalid
+      if (!isExtensionContextValid()) {
+        guardian.stopModalCacheCleanup();
+        console.log(
+          "OriginalUI: Auto-stopped cleanup timer (invalid extension context)"
+        );
+        return;
+      }
+
+      // Normal cleanup
+      guardian.cleanupExpiredModals();
     }, 10000); // Check every 10 seconds
 
     console.log("OriginalUI: Started modal cache cleanup timer");
   }
 
   /**
-   * Stop modal cache cleanup timer
+   * Stop modal cache cleanup timer (idempotent - safe to call multiple times)
    */
   stopModalCacheCleanup() {
-    if (this.modalCleanupTimer) {
+    if (this.modalCleanupTimer !== null) {
       clearInterval(this.modalCleanupTimer);
       this.modalCleanupTimer = null;
       console.log("OriginalUI: Stopped modal cache cleanup timer");
