@@ -769,92 +769,105 @@ async function setStorageWithMarker(updates) {
   });
 }
 
+/**
+ * Mutex flag to prevent concurrent dependency enforcement
+ */
+let enforcementInProgress = false;
+
+/**
+ * Consolidated dependency enforcement handler
+ * Handles cascading toggle dependencies in a single async operation
+ *
+ * @param {Object} changes - Chrome storage changes object
+ */
+async function enforceDependencies(changes) {
+  // Prevent concurrent executions
+  if (enforcementInProgress) {
+    console.log("Dependency enforcement already in progress, skipping");
+    return;
+  }
+
+  enforcementInProgress = true;
+
+  try {
+    const updates = {};
+
+    // Consolidate storage reads if dependency enforcement is needed
+    const needsDependencyCheck =
+      changes.navigationGuardEnabled?.newValue === true ||
+      changes.popUnderProtectionEnabled?.newValue === true;
+
+    let currentState = null;
+    if (needsDependencyCheck) {
+      currentState = await safeStorageGet([
+        "scriptAnalysisEnabled",
+        "navigationGuardEnabled",
+      ]);
+    }
+
+    // Auto-enable Script Analysis when Navigation Guardian is enabled
+    if (changes.navigationGuardEnabled?.newValue === true) {
+      if (!currentState.scriptAnalysisEnabled) {
+        updates.scriptAnalysisEnabled = true;
+      }
+    }
+
+    // Auto-enable both layers when Pop-under Protection is enabled
+    if (changes.popUnderProtectionEnabled?.newValue === true) {
+      if (!currentState.scriptAnalysisEnabled) {
+        updates.scriptAnalysisEnabled = true;
+      }
+      if (!currentState.navigationGuardEnabled) {
+        updates.navigationGuardEnabled = true;
+      }
+    }
+
+    // Apply batched updates (single storage write)
+    if (Object.keys(updates).length > 0) {
+      await setStorageWithMarker(updates);
+    }
+
+    // Handle ruleset state updates
+    if (changes.defaultBlockRequestEnabled?.newValue !== undefined) {
+      await updateRulesetStates(changes.defaultBlockRequestEnabled.newValue);
+    }
+  } catch (error) {
+    console.error("Dependency enforcement failed:", error);
+  } finally {
+    enforcementInProgress = false;
+  }
+}
+
+/**
+ * Refresh custom network blocking patterns
+ */
+async function refreshCustomPatterns() {
+  console.log("Custom patterns updated, refreshing rules...");
+  try {
+    await defaultBlockManager.updateSource(customPatternSource);
+    console.log("Custom patterns updated successfully");
+  } catch (error) {
+    console.error("Failed to update custom patterns:", error);
+  }
+}
+
 // Handle storage changes and notify content scripts
 chrome.storage.onChanged.addListener((changes, namespace) => {
-  // CRITICAL: Ignore our own internal dependency updates to prevent infinite loops
+  // Ignore internal updates to prevent infinite loops
   if (changes[INTERNAL_UPDATE_MARKER]) {
     return;
   }
 
   if (namespace === "local") {
-    // Smart dependency enforcement: Auto-enable Script Analysis when Navigation Guardian is enabled
-    if (
-      changes.navigationGuardEnabled &&
-      changes.navigationGuardEnabled.newValue === true
-    ) {
-      (async () => {
-        try {
-          const scriptAnalysisResult = await safeStorageGet([
-            "scriptAnalysisEnabled",
-          ]);
-          if (!scriptAnalysisResult.scriptAnalysisEnabled) {
-            await setStorageWithMarker({ scriptAnalysisEnabled: true });
-          }
-        } catch (error) {
-          console.error(
-            "Failed to enable script analysis for navigation guard dependency:",
-            error
-          );
-        }
-      })();
-    }
+    // Consolidated dependency enforcement (handles all toggle dependencies)
+    enforceDependencies(changes);
 
-    // Master toggle enforcement: Auto-enable both layers when Pop-under Protection is enabled
-    if (
-      changes.popUnderProtectionEnabled &&
-      changes.popUnderProtectionEnabled.newValue === true
-    ) {
-      (async () => {
-        try {
-          const dependenciesResult = await safeStorageGet([
-            "scriptAnalysisEnabled",
-            "navigationGuardEnabled",
-          ]);
-          const updates = {};
-          if (!dependenciesResult.scriptAnalysisEnabled) {
-            updates.scriptAnalysisEnabled = true;
-          }
-          if (!dependenciesResult.navigationGuardEnabled) {
-            updates.navigationGuardEnabled = true;
-          }
-          if (Object.keys(updates).length > 0) {
-            await setStorageWithMarker(updates);
-          }
-        } catch (error) {
-          console.error(
-            "Failed to enable pop-under protection dependencies:",
-            error
-          );
-        }
-      })();
-    }
-
-    // React to defaultBlockRequestEnabled toggle
-    if (changes.defaultBlockRequestEnabled) {
-      const enabled = changes.defaultBlockRequestEnabled.newValue;
-      (async () => {
-        try {
-          await updateRulesetStates(enabled);
-        } catch (error) {
-          console.error("Failed to update ruleset states on toggle:", error);
-        }
-      })();
+    // Custom pattern refresh
+    if (changes.networkBlockPatterns) {
+      refreshCustomPatterns();
     }
   }
 
-  // Handle networkBlockPatterns changes (stored in local)
-  if (namespace === "local" && changes.networkBlockPatterns) {
-    console.log("🔄 Custom patterns updated, refreshing rules...");
-    (async () => {
-      try {
-        await defaultBlockManager.updateSource(customPatternSource);
-        console.log("✅ Custom patterns updated successfully");
-      } catch (error) {
-        console.error("Failed to update custom patterns:", error);
-      }
-    })();
-  }
-
-  // Storage changes now propagate via chrome.storage.onChanged event
+  // Storage changes propagate via chrome.storage.onChanged event
   // Content scripts listen directly to storage changes (no tabs permission needed)
 });
