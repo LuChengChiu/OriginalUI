@@ -129,8 +129,9 @@ export class NavigationGuardian {
       this.modalManager &&
       typeof this.modalManager.setStatisticsCallback === "function"
     ) {
-      this.modalManager.setStatisticsCallback((allowed) => {
-        if (allowed) {
+      this.modalManager.setStatisticsCallback((result) => {
+        // result is {allowed: boolean, remember: boolean} from showExternalLinkModal
+        if (result.allowed) {
           this.navigationStats.allowedCount++;
         } else {
           this.navigationStats.blockedCount++;
@@ -261,8 +262,9 @@ export class NavigationGuardian {
     event.preventDefault();
     event.stopPropagation();
 
-    this.showNavigationModal(href, (allowed) => {
-      if (allowed) {
+    this.showNavigationModal(href, (result) => {
+      // result is {allowed: boolean, remember: boolean} from showConfirmationModal
+      if (result.allowed) {
         if (link.target === "_blank") {
           window.open(href, "_blank");
         } else {
@@ -391,8 +393,9 @@ export class NavigationGuardian {
     event.preventDefault();
     event.stopPropagation();
 
-    this.showNavigationModal(action, (allowed) => {
-      if (allowed) {
+    this.showNavigationModal(action, (result) => {
+      // result is {allowed: boolean, remember: boolean} from showConfirmationModal
+      if (result.allowed) {
         // Create sanitized form for ALL submissions (consistent security)
         const safeForm = this.createSanitizedForm(form);
 
