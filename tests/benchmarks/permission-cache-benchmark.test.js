@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { PermissionCache } from '@script-utils/permission-cache.js';
 
-vi.mock('../../src/scripts/utils/chromeApiSafe.js', () => ({
+vi.mock('../../src/scripts/utils/chrome-api-safe.js', () => ({
   isExtensionContextValid: vi.fn(() => true),
   safeStorageGet: vi.fn(),
   safeStorageSet: vi.fn()

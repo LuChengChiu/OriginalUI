@@ -32,7 +32,7 @@
 import {
   isExtensionContextValid,
   safeStorageSet,
-} from "@script-utils/chromeApiSafe.js";
+} from "@script-utils/chrome-api-safe.js";
 import { domainMatches, safeParseUrl } from "@utils/url-utils.js";
 import { ModalManager } from "./modal-manager.js";
 import { SecurityValidator } from "./security-validator.js";

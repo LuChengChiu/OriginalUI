@@ -6,7 +6,7 @@ import {
   safeStorageGet,
   safeStorageSet,
   safeStorageSetWithValidation,
-} from "./utils/chromeApiSafe.js";
+} from "./utils/chrome-api-safe.js";
 
 // Background Utility Imports
 import { EasyListDomSource } from "./modules/rule-execution/sources/easylist-dom-source.js";

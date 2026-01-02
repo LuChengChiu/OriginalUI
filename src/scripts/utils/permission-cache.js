@@ -12,7 +12,7 @@
  * - Statistics tracking for cache performance
  */
 
-import { isExtensionContextValid, safeStorageGet, safeStorageSet } from './chromeApiSafe.js';
+import { isExtensionContextValid, safeStorageGet, safeStorageSet } from './chrome-api-safe.js';
 import { normalizeOrigin } from '../../utils/url-utils.js';
 
 // Storage key for permission cache

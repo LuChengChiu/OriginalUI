@@ -20,7 +20,7 @@ npm run build
 Unit tests are running cleanly under vitest.
 
 ### Test Files Created
-- `tests/unit/SecurityValidator.test.js` - Comprehensive security validation tests
+- `tests/unit/security-validator.test.js` - Comprehensive security validation tests
 - `tests/unit/NavigationGuardian.test.js` - Integration tests for main orchestrator
 
 ### Validation Options

@@ -59,7 +59,7 @@ export default defineConfig({
           lines: 85,
           statements: 85
         },
-        'src/scripts/utils/chromeApiSafe.js': {
+        'src/scripts/utils/chrome-api-safe.js': {
           branches: 80,
           functions: 80,
           lines: 80,

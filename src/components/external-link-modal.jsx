@@ -2,8 +2,10 @@ import {
   createShadowDOMContainer,
   fetchCSSContent,
   injectCSSIntoShadow,
+  injectBaseShadowStyles,
+  injectFontsIntoDocument,
   injectGoogleFontsIntoShadow,
-} from "@utils/shadowDOM.js";
+} from "@utils/shadow-dom.js";
 import React from "react";
 import { createRoot } from "react-dom/client";
 import AlertOctagon from "./icons/alert-octagon.jsx";
@@ -250,18 +252,21 @@ export const showExternalLinkModal = async (config) => {
 
     const setupModal = async () => {
       try {
-        // Step 1: Create Shadow DOM container with portal target
+        // Step 1: Inject fonts into main document <head> (global scope)
+        // CRITICAL: Shadow DOM blocks font loading from chrome-extension:// URLs
+        // Solution: Load fonts globally so Shadow DOM elements can use them
+        injectFontsIntoDocument();
+
+        // Step 2: Create Shadow DOM container with portal target
         shadowDOMSetup = createShadowDOMContainer();
         const { container, shadowRoot, portalTarget } = shadowDOMSetup;
 
-        // Step 2: Fetch CSS content
-        const cssContent = await fetchCSSContent();
+        // Step 3: Inject base Shadow DOM typography styles
+        // Sets font-family to use globally-loaded fonts
+        injectBaseShadowStyles(shadowRoot);
 
-        // Step 3: Inject CSS and fonts in parallel into Shadow DOM
-        await Promise.all([
-          injectCSSIntoShadow(shadowRoot, cssContent),
-          injectGoogleFontsIntoShadow(shadowRoot),
-        ]);
+        // Step 4: Inject CSS via <link> element and WAIT for it to load
+        await injectCSSIntoShadow(shadowRoot);
 
         // Step 4: Create React root (on light DOM container for React internals)
         const root = createRoot(container);
