@@ -1078,8 +1078,13 @@ import { safeParseUrl } from "../utils/url-utils.js";
           })
           .catch((error) => {
             console.error('Navigation Guardian: Unexpected error in location.assign:', error);
-            reportPermissionError(error, url, 'location.assign', false);
+            reportPermissionError(error, url, 'location.assign', true);
             // Fail-secure: deny navigation
+            try {
+              showBlockedToast(url, 'Navigation blocked due to security check error');
+            } catch (toastError) {
+              console.warn('Navigation Guardian: Could not show blocked toast:', toastError);
+            }
           });
       },
       "method"
@@ -1129,8 +1134,13 @@ import { safeParseUrl } from "../utils/url-utils.js";
           })
           .catch((error) => {
             console.error('Navigation Guardian: Unexpected error in location.replace:', error);
-            reportPermissionError(error, url, 'location.replace', false);
+            reportPermissionError(error, url, 'location.replace', true);
             // Fail-secure: deny navigation
+            try {
+              showBlockedToast(url, 'Navigation blocked due to security check error');
+            } catch (toastError) {
+              console.warn('Navigation Guardian: Could not show blocked toast:', toastError);
+            }
           });
       },
       "method"
@@ -1182,14 +1192,12 @@ import { safeParseUrl } from "../utils/url-utils.js";
             })
             .catch((error) => {
               console.error('Navigation Guardian: Unexpected error in location.href:', error);
-              reportPermissionError(error, url, 'location.href', false);
-              // Fail-open for location.href (low-risk, often user-initiated)
-              // This is a safety net - risk assessment should handle this, but if something
-              // unexpected happens, allow the navigation anyway for better UX
+              reportPermissionError(error, url, 'location.href', true);
+              // Fail-secure: deny navigation (consistent with location.assign/replace)
               try {
-                originalHrefDescriptor.set.call(window.location, url);
-              } catch (navError) {
-                console.error('Navigation Guardian: Failed to execute fail-open navigation:', navError);
+                showBlockedToast(url, 'Navigation blocked due to security check error');
+              } catch (toastError) {
+                console.warn('Navigation Guardian: Could not show blocked toast:', toastError);
               }
             });
         },
