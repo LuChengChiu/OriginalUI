@@ -1,7 +1,7 @@
 {
-  "name": "originalui",
+  "name": "original-ui",
   "version": "1.0.0",
-  "description": "",
+  "description": "npm dev tools",
   "main": "index.js",
   "scripts": {
     "dev": "vite",
@@ -23,7 +23,7 @@
     "url": "git+https://github.com/LuChengChiu/OriginalUI.git"
   },
   "keywords": [],
-  "author": "",
+  "author": "LuCheng Chiu",
   "license": "GPL-3.0",
   "type": "module",
   "bugs": {
