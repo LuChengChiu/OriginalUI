@@ -1,35 +1,286 @@
-import { useState, useEffect } from "react";
-import Switch from "./components/ui/switch";
+import { useEffect, useReducer, useRef } from "react";
+import Loading from "./components/ui/loading";
 
-function App() {
-  const [isActive, setIsActive] = useState(false);
-  const [currentDomain, setCurrentDomain] = useState("");
-  const [isWhitelisted, setIsWhitelisted] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [domainStats, setDomainStats] = useState({});
+import CurrentDomain from "./components/app/current-domain";
+import DefaultSections from "./components/app/default-sections";
+import NavigationStats from "./components/app/navigation-stats";
+import RuleStates from "./components/app/rule-stats";
+import Status from "./components/app/status";
+import Gear from "./components/icons/gear";
+import Button from "./components/ui/button";
+import { H1 } from "./components/ui/typography";
+import Logger from "@script-utils/logger.js";
+
+// Action types
+const actionTypes = {
+  LOAD_SETTINGS: "LOAD_SETTINGS",
+  TOGGLE_MAIN: "TOGGLE_MAIN",
+  TOGGLE_PROTECTION_SYSTEM: "TOGGLE_PROTECTION_SYSTEM",
+  UPDATE_PROTECTION_SYSTEMS: "UPDATE_PROTECTION_SYSTEMS",
+  SET_DOMAIN_INFO: "SET_DOMAIN_INFO",
+  UPDATE_STATS: "UPDATE_STATS",
+  SET_LOADING: "SET_LOADING",
+  SET_WHITELIST_ERROR: "SET_WHITELIST_ERROR",
+};
+
+// Initial state
+const initialState = {
+  isActive: false,
+  protectionSystems: {
+    navigationGuard: true,
+    defaultRules: true,
+    customRules: true,
+    requestBlocking: true,
+  },
+  domain: {
+    current: "",
+    isWhitelisted: false,
+  },
+  stats: {
+    domain: {},
+    navigation: { blockedCount: 0, allowedCount: 0 },
+  },
+  loading: true,
+  whitelistError: "",
+};
+
+// Reducer
+const protectionReducer = (state, action) => {
+  switch (action.type) {
+    case actionTypes.LOAD_SETTINGS:
+      return {
+        ...state,
+        isActive: action.payload.isActive || false,
+        protectionSystems: {
+          navigationGuard: action.payload.navigationGuardEnabled !== false,
+          defaultRules: action.payload.defaultRulesEnabled !== false,
+          customRules: action.payload.customRulesEnabled !== false,
+          requestBlocking: action.payload.defaultBlockRequestEnabled !== false,
+        },
+        stats: {
+          domain: action.payload.domainStats || {},
+          navigation: action.payload.navigationStats || {
+            blockedCount: 0,
+            allowedCount: 0,
+          },
+        },
+      };
+    case actionTypes.TOGGLE_MAIN:
+      return { ...state, isActive: action.value };
+    case actionTypes.TOGGLE_PROTECTION_SYSTEM:
+      return {
+        ...state,
+        protectionSystems: {
+          ...state.protectionSystems,
+          [action.system]: action.value,
+        },
+      };
+    case actionTypes.UPDATE_PROTECTION_SYSTEMS:
+      return {
+        ...state,
+        protectionSystems: {
+          ...state.protectionSystems,
+          ...action.systems,
+        },
+      };
+    case actionTypes.SET_DOMAIN_INFO:
+      return {
+        ...state,
+        domain: {
+          current: action.domain,
+          isWhitelisted: action.isWhitelisted,
+        },
+      };
+    case actionTypes.UPDATE_STATS:
+      return {
+        ...state,
+        stats: {
+          ...state.stats,
+          [action.statType]: action.stats,
+        },
+      };
+    case actionTypes.SET_LOADING:
+      return { ...state, loading: action.value };
+    case actionTypes.SET_WHITELIST_ERROR:
+      return { ...state, whitelistError: action.message || "" };
+    default:
+      return state;
+  }
+};
+
+// Chrome storage integration
+const storageAdapter = {
+  async load() {
+    return new Promise((resolve) => {
+      chrome.storage.local.get(
+        [
+          "isActive",
+          "domainStats",
+          "defaultRulesEnabled",
+          "defaultBlockRequestEnabled",
+          "navigationGuardEnabled",
+          "customRulesEnabled",
+          "navigationStats",
+        ],
+        resolve
+      );
+    });
+  },
+
+  save(key, value) {
+    chrome.storage.local.set({ [key]: value });
+  },
+
+  saveProtectionSystem(system, value) {
+    const storageKey = {
+      navigationGuard: "navigationGuardEnabled",
+      defaultRules: "defaultRulesEnabled",
+      customRules: "customRulesEnabled",
+      requestBlocking: "defaultBlockRequestEnabled",
+    }[system];
+
+    if (storageKey) {
+      this.save(storageKey, value);
+    }
+  },
+};
+
+export default function App() {
+  const [state, dispatch] = useReducer(protectionReducer, initialState);
+  const whitelistTimeoutRef = useRef(null);
+  const whitelistErrorTimeoutRef = useRef(null);
+  const isMountedRef = useRef(true);
+  const currentDomain = state?.domain?.current ?? "";
+  // Toggle handlers
+  const handleToggle = (newState) => {
+    dispatch({ type: actionTypes.TOGGLE_MAIN, value: newState });
+    storageAdapter.save("isActive", newState);
+  };
+
+  const handleProtectionToggle = (system, newState) => {
+    dispatch({
+      type: actionTypes.TOGGLE_PROTECTION_SYSTEM,
+      system,
+      value: newState,
+    });
+    storageAdapter.saveProtectionSystem(system, newState);
+  };
+
+  const setWhitelistError = (message) => {
+    dispatch({ type: actionTypes.SET_WHITELIST_ERROR, message });
+
+    if (whitelistErrorTimeoutRef.current) {
+      clearTimeout(whitelistErrorTimeoutRef.current);
+      whitelistErrorTimeoutRef.current = null;
+    }
+
+    if (message) {
+      whitelistErrorTimeoutRef.current = setTimeout(() => {
+        if (!isMountedRef.current) return;
+        dispatch({ type: actionTypes.SET_WHITELIST_ERROR, message: "" });
+        whitelistErrorTimeoutRef.current = null;
+      }, 3000);
+    }
+  };
+
+  const handleWhitelistToggle = () => {
+    if (!currentDomain) return;
+    const whitelistAction = state.domain.isWhitelisted ? "remove" : "add";
+    setWhitelistError("");
+
+    if (whitelistTimeoutRef.current) {
+      clearTimeout(whitelistTimeoutRef.current);
+    }
+
+    const timeout = setTimeout(() => {
+      if (!isMountedRef.current) return;
+      Logger.error("WhitelistUpdate", "Timeout updating whitelist", {
+        domain: currentDomain
+      });
+      setWhitelistError("Whitelist update timed out. Please try again.");
+    }, 5000);
+    whitelistTimeoutRef.current = timeout;
+
+    chrome.runtime.sendMessage(
+      {
+        action: "updateWhitelist",
+        domain: currentDomain,
+        whitelistAction,
+      },
+      (response) => {
+        clearTimeout(timeout);
+        whitelistTimeoutRef.current = null;
+
+        if (!isMountedRef.current) return;
+
+        if (chrome.runtime.lastError) {
+          Logger.error("WhitelistUpdate", "Error updating whitelist", chrome.runtime.lastError, {
+            domain: currentDomain,
+            action: whitelistAction
+          });
+          setWhitelistError("Failed to update whitelist. Please try again.");
+          return;
+        }
+        if (response && response.success) {
+          dispatch({
+            type: actionTypes.SET_DOMAIN_INFO,
+            domain: currentDomain,
+            isWhitelisted: !state.domain.isWhitelisted,
+          });
+          setWhitelistError("");
+          return;
+        }
+        setWhitelistError(
+          response?.message || "Whitelist update failed. Please try again."
+        );
+      }
+    );
+  };
+
+  const handleResetStats = () => {
+    if (!currentDomain) return;
+
+    const updatedStats = { ...state.stats.domain };
+    delete updatedStats[currentDomain];
+
+    chrome.storage.local.set({ domainStats: updatedStats }, () => {
+      dispatch({
+        type: actionTypes.UPDATE_STATS,
+        statType: "domain",
+        stats: updatedStats,
+      });
+    });
+  };
+
+  const handleOpenSettings = () => {
+    chrome.tabs.create({ url: chrome.runtime.getURL("settings.html") });
+  };
 
   useEffect(() => {
     const initializeExtension = async () => {
       try {
         // Load extension state from storage
-        chrome.storage.local.get(["isActive", "domainStats"], (result) => {
-          setIsActive(result.isActive || false);
-          setDomainStats(result.domainStats || {});
-        });
+        const settings = await storageAdapter.load();
+        if (!isMountedRef.current) {
+          return;
+        }
+        dispatch({ type: actionTypes.LOAD_SETTINGS, payload: settings });
 
         // Get current domain with timeout
         const domainResponse = await new Promise((resolve) => {
-          const timeout = setTimeout(() => resolve(null), 1000); // 3 second timeout
+          const timeout = setTimeout(() => {
+            if (!isMountedRef.current) return;
+            resolve(null);
+          }, 1000); // 1 second timeout
 
           chrome.runtime.sendMessage(
             { action: "getCurrentDomain" },
             (response) => {
               clearTimeout(timeout);
+              if (!isMountedRef.current) return;
+
               if (chrome.runtime.lastError) {
-                console.error(
-                  "Error getting current domain:",
-                  chrome.runtime.lastError
-                );
+                Logger.error("PopupInit", "Error getting current domain", chrome.runtime.lastError);
                 resolve(null);
               } else {
                 resolve(response);
@@ -38,25 +289,27 @@ function App() {
           );
         });
 
+        if (!isMountedRef.current) {
+          return;
+        }
         if (domainResponse && domainResponse.domain) {
-          setCurrentDomain(domainResponse.domain);
-
           // Check if domain is whitelisted with timeout
           const whitelistResponse = await new Promise((resolve) => {
-            const timeout = setTimeout(
-              () => resolve({ isWhitelisted: false }),
-              1000
-            );
+            const timeout = setTimeout(() => {
+              if (!isMountedRef.current) return;
+              resolve({ isWhitelisted: false });
+            }, 1000);
 
             chrome.runtime.sendMessage(
               { action: "checkDomainWhitelist", domain: domainResponse.domain },
               (response) => {
                 clearTimeout(timeout);
+                if (!isMountedRef.current) return;
+
                 if (chrome.runtime.lastError) {
-                  console.error(
-                    "Error checking whitelist:",
-                    chrome.runtime.lastError
-                  );
+                  Logger.error("PopupInit", "Error checking whitelist", chrome.runtime.lastError, {
+                    domain: domainResponse.domain
+                  });
                   resolve({ isWhitelisted: false });
                 } else {
                   resolve(response);
@@ -65,22 +318,69 @@ function App() {
             );
           });
 
-          setIsWhitelisted(whitelistResponse.isWhitelisted);
+          if (!isMountedRef.current) {
+            return;
+          }
+          dispatch({
+            type: actionTypes.SET_DOMAIN_INFO,
+            domain: domainResponse.domain,
+            isWhitelisted: whitelistResponse.isWhitelisted,
+          });
         }
       } catch (error) {
-        console.error("Extension initialization error:", error);
+        Logger.error("PopupInit", "Extension initialization error", error);
       } finally {
-        setLoading(false);
+        if (isMountedRef.current) {
+          dispatch({ type: actionTypes.SET_LOADING, value: false });
+        }
       }
     };
 
     initializeExtension();
 
-    // Listen for storage changes to update counts in real-time
+    // Listen for storage changes to update state in real-time
     const storageListener = (changes, namespace) => {
       if (namespace === "local") {
-        if (changes.domainStats) {
-          setDomainStats(changes.domainStats.newValue || {});
+        const protectionUpdates = {};
+        const protectionStorageMap = {
+          navigationGuardEnabled: "navigationGuard",
+          defaultRulesEnabled: "defaultRules",
+          customRulesEnabled: "customRules",
+          defaultBlockRequestEnabled: "requestBlocking",
+        };
+
+        Object.keys(protectionStorageMap).forEach((storageKey) => {
+          if (Object.prototype.hasOwnProperty.call(changes, storageKey)) {
+            const systemKey = protectionStorageMap[storageKey];
+            const newValue = changes[storageKey].newValue;
+            protectionUpdates[systemKey] = newValue !== false;
+          }
+        });
+
+        if (Object.keys(protectionUpdates).length > 0) {
+          dispatch({
+            type: actionTypes.UPDATE_PROTECTION_SYSTEMS,
+            systems: protectionUpdates,
+          });
+        }
+
+        if (Object.prototype.hasOwnProperty.call(changes, "domainStats")) {
+          dispatch({
+            type: actionTypes.UPDATE_STATS,
+            statType: "domain",
+            stats: changes.domainStats.newValue || {},
+          });
+        }
+
+        if (Object.prototype.hasOwnProperty.call(changes, "navigationStats")) {
+          dispatch({
+            type: actionTypes.UPDATE_STATS,
+            statType: "navigation",
+            stats: changes.navigationStats.newValue || {
+              blockedCount: 0,
+              allowedCount: 0,
+            },
+          });
         }
       }
     };
@@ -89,198 +389,64 @@ function App() {
 
     // Cleanup listener on unmount
     return () => {
+      isMountedRef.current = false;
+      if (whitelistTimeoutRef.current) {
+        clearTimeout(whitelistTimeoutRef.current);
+      }
+      if (whitelistErrorTimeoutRef.current) {
+        clearTimeout(whitelistErrorTimeoutRef.current);
+      }
       chrome.storage.onChanged.removeListener(storageListener);
     };
   }, []);
 
-  const handleToggle = (newState) => {
-    setIsActive(newState);
-    chrome.storage.local.set({ isActive: newState });
-  };
+  useEffect(() => {
+    setWhitelistError("");
+  }, [currentDomain]);
 
-  const handleWhitelistToggle = () => {
-    const whitelistAction = isWhitelisted ? "remove" : "add";
-
-    const timeout = setTimeout(() => {
-      console.error("Timeout updating whitelist");
-    }, 5000);
-
-    chrome.runtime.sendMessage(
-      { action: "updateWhitelist", domain: currentDomain, whitelistAction },
-      (response) => {
-        clearTimeout(timeout);
-        if (chrome.runtime.lastError) {
-          console.error("Error updating whitelist:", chrome.runtime.lastError);
-        } else if (response && response.success) {
-          setIsWhitelisted(!isWhitelisted);
-        }
-      }
-    );
-  };
-
-  const handleResetStats = () => {
-    if (!currentDomain) return;
-
-    const updatedStats = { ...domainStats };
-    delete updatedStats[currentDomain];
-
-    chrome.storage.local.set(
-      {
-        domainStats: updatedStats,
-      },
-      () => {
-        setDomainStats(updatedStats);
-      }
-    );
-  };
-
-  if (loading) {
-    return (
-      <div className="w-80 h-auto p-4 bg-[#1F2937]">
-        <div className="text-white text-center">Loading...</div>
-      </div>
-    );
+  if (state.loading) {
+    return <Loading />;
   }
 
   return (
-    <div className="w-80 h-auto p-4 bg-[#1F2937]">
-      <header className="mb-6">
-        <h1 className="text-xl font-bold font-days-one bg-linear-to-r from-purple-600 to-violet-400 bg-clip-text text-transparent">
-          JustUI
-        </h1>
+    <div className="w-96 rounded-lg h-auto p-0 bg-[#F9F8FB]">
+      <header className="flex w-full items-center justify-end pr-2 pb-1">
+        <H1 color="accent" align="center" className="text-[26px]">
+          OriginalUI
+        </H1>
       </header>
 
-      <main className="space-y-4">
-        {/* Extension Status */}
-        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-800">
-              Extension Status
-            </h2>
-            <p className="text-sm text-gray-600">
-              {isActive ? "Active" : "Inactive"}
-            </p>
-          </div>
-          <Switch checked={isActive} onChange={handleToggle} />
-        </div>
+      <main className="p-4 pt-0 space-y-2">
+        <Status isActive={state.isActive} onChange={handleToggle} />
 
-        {/* Current Domain Status */}
-        {currentDomain && (
-          <div className="p-4 bg-gray-50 rounded-lg">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-md font-semibold text-gray-800">
-                Current Domain
-              </h3>
-              <span
-                className={`px-2 py-1 text-xs rounded-full ${
-                  isWhitelisted
-                    ? "bg-green-100 text-green-800"
-                    : "bg-gray-100 text-gray-800"
-                }`}
-              >
-                {isWhitelisted ? "Whitelisted" : "Not Whitelisted"}
-              </span>
-            </div>
-            <p className="text-sm text-gray-600 mb-3">{currentDomain}</p>
+        <CurrentDomain
+          domain={currentDomain}
+          isWhitelisted={state.domain.isWhitelisted}
+          onWhitelistToggle={handleWhitelistToggle}
+          errorMessage={state.whitelistError}
+        />
 
-            {isWhitelisted && (
-              <button
-                onClick={handleWhitelistToggle}
-                className="w-full px-3 py-2 text-sm bg-red-500 hover:bg-red-600 text-white rounded-md transition-colors"
-              >
-                Remove from Whitelist
-              </button>
-            )}
+        <DefaultSections
+          state={state}
+          handleProtectionToggle={handleProtectionToggle}
+        />
 
-            {!isWhitelisted && (
-              <button
-                onClick={handleWhitelistToggle}
-                className="w-full px-3 py-2 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded-md transition-colors"
-              >
-                Add to Whitelist
-              </button>
-            )}
-          </div>
-        )}
+        <NavigationStats state={state} />
 
-        {/* Status Summary */}
-        <div className="p-4 bg-gray-50 rounded-lg">
-          <h3 className="text-md font-semibold text-gray-800 mb-2">
-            Element Removal Status
-          </h3>
-          <p className="text-sm text-gray-600">
-            {isActive && !isWhitelisted
-              ? "✓ Elements will be removed on this domain"
-              : isActive && isWhitelisted
-              ? "⏸ Domain is whitelisted (clean site, no removal)"
-              : "⏸ Extension is inactive"}
-          </p>
-        </div>
+        <RuleStates
+          domain={currentDomain}
+          stats={state?.stats?.domain?.[currentDomain]}
+          onResetStats={handleResetStats}
+        />
 
-        {/* Statistics */}
-        {currentDomain && (
-          <div className="p-4 bg-gray-50 rounded-lg">
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="text-md font-semibold text-gray-800">
-                Removal Stats
-              </h3>
-              {domainStats[currentDomain] && (
-                <button
-                  onClick={handleResetStats}
-                  className="text-xs px-2 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded transition-colors"
-                  title="Reset statistics for this domain"
-                >
-                  Reset
-                </button>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Default Rules:</span>
-                <span className="text-sm font-semibold text-purple-600">
-                  {domainStats[currentDomain]?.defaultRulesRemoved || 0}{" "}
-                  elements
-                </span>
-              </div>
-              {!!domainStats[currentDomain]?.customRulesRemoved && (
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Custom Rules:</span>
-                  <span className="text-sm font-semibold text-violet-600">
-                    {domainStats[currentDomain]?.customRulesRemoved || 0}{" "}
-                    elements
-                  </span>
-                </div>
-              )}
-              <div className="pt-2 mt-2 border-t border-gray-200">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-semibold text-gray-800">
-                    Total:
-                  </span>
-                  <span className="text-sm font-bold text-gray-900">
-                    {(domainStats[currentDomain]?.defaultRulesRemoved || 0) +
-                      (domainStats[currentDomain]?.customRulesRemoved ||
-                        0)}{" "}
-                    elements
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Settings Link */}
-        <div className="pt-4 border-t border-gray-600">
-          <button
-            onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL('settings.html') })}
-            className="w-full px-3 py-2 text-sm bg-gray-600 hover:bg-gray-700 text-white rounded-md transition-colors flex items-center justify-center gap-2"
-          >
-            ⚙️ Advanced Settings
-          </button>
-        </div>
+        <Button
+          variant="primary"
+          onClick={handleOpenSettings}
+          className="w-full flex gap-x-1.5 font-days-one"
+        >
+          <Gear /> Advanced Settings
+        </Button>
       </main>
     </div>
   );
 }
-
-export default App;

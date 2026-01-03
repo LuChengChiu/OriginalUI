@@ -1,7 +1,133 @@
 @import "tailwindcss";
 @source "../popup.html";
+@source "../settings.html";
 @source "./**/*.jsx";
+
+/* Days One Font */
+@font-face {
+  font-family: "Days One";
+  src: url("../fonts/Days_One/days-one-regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Barlow Font Family */
+@font-face {
+  font-family: "Barlow";
+  src: url("../fonts/Barlow/barlow-thin.ttf") format("truetype");
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Barlow";
+  src: url("../fonts/Barlow/barlow-extra-light.ttf") format("truetype");
+  font-weight: 200;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Barlow";
+  src: url("../fonts/Barlow/barlow-light.ttf") format("truetype");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Barlow";
+  src: url("../fonts/Barlow/barlow-regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Barlow";
+  src: url("../fonts/Barlow/barlow-medium.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Barlow";
+  src: url("../fonts/Barlow/barlow-semi-bold.ttf") format("truetype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Barlow";
+  src: url("../fonts/Barlow/barlow-bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Barlow";
+  src: url("../fonts/Barlow/barlow-extra-bold.ttf") format("truetype");
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Barlow";
+  src: url("../fonts/Barlow/barlow-black.ttf") format("truetype");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
 
 @theme {
   --font-days-one: "Days One", cursive;
+  --font-barlow: "Barlow", sans-serif;
+
+  --color-text: #141117;
+  --color-primary: #913ced;
+  --color-secondary: #bb92e7;
+  --color-accent: #9647eb;
+
+  --animate-terminal-typing: type-and-delete 4s steps(10) infinite,
+    blink-cursor 0.5s step-end infinite alternate;
+
+  @keyframes blink-cursor {
+    50% {
+      border-right-color: transparent;
+    }
+  }
+
+  @keyframes type-and-delete {
+    0%,
+    10% {
+      width: 0;
+    }
+    45%,
+    55% {
+      width: 5.8em;
+    }
+    90%,
+    100% {
+      width: 0;
+    }
+  }
+}
+
+/* Reusable Component Classes */
+@layer components {
+  /* Card variants */
+  .card-purple {
+    @apply px-4 py-3 bg-secondary/30 rounded-lg;
+  }
+
+  /* Text truncation with ellipsis */
+  .text-truncate {
+    @apply overflow-hidden whitespace-nowrap text-ellipsis block;
+  }
 }

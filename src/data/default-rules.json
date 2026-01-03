@@ -1,0 +1,110 @@
+[
+  {
+    "id": "manhwaclan-pubfuture-config",
+    "selector": ".pf-config",
+    "description": "ad class found in manhwaclan",
+    "confidence": "high",
+    "domains": ["*"],
+    "category": "advertising",
+    "enabled": true
+  },
+  {
+    "id": "manhwaclan-pubfuture-wrapper",
+    "selector": ".pf-wrapper",
+    "description": "ad class found in manhwaclan",
+    "confidence": "high",
+    "domains": ["*"],
+    "category": "advertising",
+    "enabled": true
+  },
+  {
+    "id": "manhwaclan-pubfuture",
+    "selector": ".PUBFUTURE",
+    "description": "ad class found in manhwaclan",
+    "confidence": "high",
+    "domains": ["*"],
+    "category": "advertising",
+    "enabled": true
+  },
+  {
+    "id": "kunmanga-D1BnW",
+    "selector": ".D1BnW",
+    "description": "ad class found in kunmanga",
+    "confidence": "high",
+    "domains": ["*"],
+    "category": "advertising",
+    "enabled": true
+  },
+  {
+    "id": "kunmanga-c-ads",
+    "selector": ".c-ads",
+    "description": "ad class found in kunmanga",
+    "confidence": "high",
+    "domains": ["*"],
+    "category": "advertising",
+    "enabled": true
+  },
+  {
+    "id": "ads-iframes",
+    "selector": "iframe[src*='ads'], iframe[src*='doubleclick'], iframe[src*='cpc']",
+    "description": "CPC/Ad network iframes",
+    "confidence": "high",
+    "domains": ["*"],
+    "category": "advertising",
+    "enabled": true
+  },
+  {
+    "id": "social-widgets",
+    "selector": ".fb-like, .twitter-share-button, .linkedin-share-button",
+    "description": "Social media share buttons",
+    "confidence": "medium",
+    "domains": ["*"],
+    "category": "social",
+    "enabled": true
+  },
+  {
+    "id": "tracking-scripts",
+    "selector": "script[src*='analytics'], script[src*='tracking'], script[src*='gtag']",
+    "description": "Analytics and tracking scripts",
+    "confidence": "high",
+    "domains": ["*"],
+    "category": "tracking",
+    "enabled": true
+  },
+  {
+    "id": "invisible-overlay-hijacker",
+    "selector": "[style*='position: fixed'][style*='width: 100%'][style*='height: 100%'][style*='opacity: 0'][style*='z-index: 2147483647']",
+    "description": "Invisible full-screen overlay used for click hijacking",
+    "confidence": "high",
+    "domains": ["*"],
+    "category": "advertising",
+    "enabled": true
+  },
+  {
+    "id": "invisible-inset-overlay-hijacker",
+    "selector": "[style*='position: fixed'][style*='inset:'][style*='opacity: 0'][style*='z-index: 2147483647']",
+    "description": "Invisible full-screen overlay using inset property for click hijacking",
+    "confidence": "high",
+    "domains": ["*"],
+    "category": "advertising",
+    "enabled": true
+  },
+  {
+    "id": "adexchangeclear-links",
+    "selector": "a[href*='adexchangeclear.com']",
+    "description": "AdExchangeClear ad network links",
+    "confidence": "high",
+    "domains": ["*"],
+    "category": "advertising",
+    "enabled": true
+  },
+  {
+    "id": "ad-click-tracking",
+    "selector": "a[href*='/c.php?'][href*='ad'], a[href*='click.php'][href*='ad'], a[href*='/c.php?'][href*='click'], a[href*='/c.php?'][href*='track']",
+    "description": "Ad click tracking links (c.php/click.php with ad context)",
+    "confidence": "medium",
+    "domains": ["*"],
+    "category": "advertising",
+    "enabled": true
+  }
+]

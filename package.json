@@ -1,25 +1,35 @@
 {
-  "name": "justui",
+  "name": "original-ui",
   "version": "1.0.0",
-  "description": "",
+  "description": "npm dev tools",
   "main": "index.js",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "prebuild": "node scripts/build-network-rules.js",
+    "build": "vite build --mode production",
+    "build:dev": "vite build --mode development",
+    "preview": "vite preview",
+    "update-adservers": "node scripts/build-network-rules.js",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest --watch",
+    "test:ui": "vitest --ui",
+    "test:jest": "jest",
+    "test:jest-watch": "jest --watch"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/LuChengChiu/JustUI.git"
+    "url": "git+https://github.com/LuChengChiu/OriginalUI.git"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "LuCheng Chiu",
+  "license": "GPL-3.0",
   "type": "module",
   "bugs": {
-    "url": "https://github.com/LuChengChiu/JustUI/issues"
+    "url": "https://github.com/LuChengChiu/OriginalUI/issues"
   },
-  "homepage": "https://github.com/LuChengChiu/JustUI#readme",
+  "homepage": "https://github.com/LuChengChiu/OriginalUI#readme",
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.18",
     "@vitejs/plugin-react": "^5.1.2",
@@ -29,5 +39,22 @@
     "react-dom": "^19.2.3",
     "tailwindcss": "^4.1.18",
     "vite": "^7.2.7"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.28.5",
+    "@babel/preset-env": "^7.28.5",
+    "@eyeo/abp2dnr": "^1.0.0",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.1",
+    "@testing-library/user-event": "^14.5.2",
+    "@types/chrome": "^0.0.277",
+    "@vitest/coverage-v8": "^2.1.8",
+    "@vitest/ui": "^2.1.8",
+    "babel-jest": "^30.2.0",
+    "jest": "^30.2.0",
+    "jsdom": "^25.0.1",
+    "terser": "^5.44.1",
+    "vitest": "^2.1.8"
   }
 }
