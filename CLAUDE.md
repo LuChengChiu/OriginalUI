@@ -328,6 +328,47 @@ The extension uses a centralized threat pattern system to ensure consistency and
 - **Easy Maintenance**: Add new threats to threat-patterns.js, automatically used by both modules
 - **Minimal Bundle Impact**: +0.82KB total (+0.25%) for significant architectural improvement
 
+**Stable Handler References Pattern:**
+
+All protection modules follow a stable handler references pattern to prevent memory leaks from repeated event listener registration:
+
+- **Event Handler Creation**: Event handler functions are created ONCE in the constructor and stored as instance properties
+- **Bound References**: Handlers that need `this` context are bound in the constructor (e.g., `this._boundClickHandler = this._handleClick.bind(this)`)
+- **Reusable References**: Setup methods use these stable references instead of creating new functions
+- **DOM Deduplication**: Browser automatically deduplicates listeners with identical function references
+- **Idempotent Setup**: Setup methods can be called multiple times safely without accumulating duplicate listeners
+
+**Example Pattern:**
+```javascript
+class ProtectionModule {
+  constructor() {
+    // Create stable bound references ONCE
+    this._boundHandler = this._handleEvent.bind(this);
+    this.setupListeners();
+  }
+
+  _handleEvent(event) {
+    // Handler implementation
+  }
+
+  setupListeners() {
+    // Use stable reference - DOM deduplicates automatically
+    document.addEventListener('click', this._boundHandler, true);
+  }
+
+  cleanup() {
+    // Cleanup works correctly with stable references
+    document.removeEventListener('click', this._boundHandler, true);
+  }
+}
+```
+
+**Why This Matters:**
+- Prevents memory leaks from duplicate listener registration
+- Makes setup methods idempotent (safe to call multiple times)
+- No runtime overhead (same number of functions, created once vs. multiple times)
+- Maintains testability (named methods remain testable)
+
 **Performance Optimization:**
 
 - **Time-Slicing**: Non-blocking execution that respects frame budgets
