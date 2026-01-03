@@ -352,11 +352,11 @@ OriginalUI uses Chrome's Storage API with the following schema:
 
 Additional internal storage (managed by modules, not user-facing):
 
-- `permissionCacheV1` - Navigation permission cache. See `MIGRATIONS.md` for schema details and versioning policy.
+- `permissionCacheV1` - Navigation permission cache. See `docs/MIGRATIONS.md` for schema details and versioning policy.
 
 ### Migration Guide
 
-See `MIGRATIONS.md` for storage schema versioning, migration steps, and the permission cache upgrade path.
+See `docs/MIGRATIONS.md` for storage schema versioning, migration steps, and the permission cache upgrade path.
 
 ### Rule Schema
 

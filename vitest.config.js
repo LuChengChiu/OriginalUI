@@ -20,7 +20,7 @@ export default defineConfig({
   test: {
     // Environment setup
     environment: 'jsdom',
-    setupFiles: ['./test/setup.js'],
+    setupFiles: ['./tests/setup/setup.js'],
     
     // Global test configuration
     globals: true,
@@ -39,7 +39,7 @@ export default defineConfig({
       exclude: [
         'node_modules/**',
         'dist/**',
-        'test/**',
+        'tests/setup/**',
         '**/*.config.{js,ts}',
         '**/*.d.ts',
         'src/data/**', // Exclude data files
@@ -70,7 +70,6 @@ export default defineConfig({
     
     // File patterns
     include: [
-      'test/**/*.{test,spec}.{js,jsx,ts,tsx}',
       'tests/**/*.{test,spec}.{js,jsx,ts,tsx}',
       'src/**/*.{test,spec}.{js,jsx,ts,tsx}'
     ],
@@ -115,7 +114,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
-      '@test': resolve(__dirname, 'test'),
+      '@test': resolve(__dirname, 'tests/setup'),
       '@tests': resolve(__dirname, 'tests'),
       '@modules': resolve(__dirname, 'src/scripts/modules'),
       '@utils': resolve(__dirname, 'src/utils'),

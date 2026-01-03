@@ -6,7 +6,7 @@
 /* Days One Font */
 @font-face {
   font-family: "Days One";
-  src: url("../fonts/Days_One/days-one-regular.ttf") format("truetype");
+  src: url("./assets/fonts/Days_One/days-one-regular.ttf") format("truetype");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -15,7 +15,7 @@
 /* Barlow Font Family */
 @font-face {
   font-family: "Barlow";
-  src: url("../fonts/Barlow/barlow-thin.ttf") format("truetype");
+  src: url("./assets/fonts/Barlow/barlow-thin.ttf") format("truetype");
   font-weight: 100;
   font-style: normal;
   font-display: swap;
@@ -23,7 +23,7 @@
 
 @font-face {
   font-family: "Barlow";
-  src: url("../fonts/Barlow/barlow-extra-light.ttf") format("truetype");
+  src: url("./assets/fonts/Barlow/barlow-extra-light.ttf") format("truetype");
   font-weight: 200;
   font-style: normal;
   font-display: swap;
@@ -31,7 +31,7 @@
 
 @font-face {
   font-family: "Barlow";
-  src: url("../fonts/Barlow/barlow-light.ttf") format("truetype");
+  src: url("./assets/fonts/Barlow/barlow-light.ttf") format("truetype");
   font-weight: 300;
   font-style: normal;
   font-display: swap;
@@ -39,7 +39,7 @@
 
 @font-face {
   font-family: "Barlow";
-  src: url("../fonts/Barlow/barlow-regular.ttf") format("truetype");
+  src: url("./assets/fonts/Barlow/barlow-regular.ttf") format("truetype");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -47,7 +47,7 @@
 
 @font-face {
   font-family: "Barlow";
-  src: url("../fonts/Barlow/barlow-medium.ttf") format("truetype");
+  src: url("./assets/fonts/Barlow/barlow-medium.ttf") format("truetype");
   font-weight: 500;
   font-style: normal;
   font-display: swap;
@@ -55,7 +55,7 @@
 
 @font-face {
   font-family: "Barlow";
-  src: url("../fonts/Barlow/barlow-semi-bold.ttf") format("truetype");
+  src: url("./assets/fonts/Barlow/barlow-semi-bold.ttf") format("truetype");
   font-weight: 600;
   font-style: normal;
   font-display: swap;
@@ -63,7 +63,7 @@
 
 @font-face {
   font-family: "Barlow";
-  src: url("../fonts/Barlow/barlow-bold.ttf") format("truetype");
+  src: url("./assets/fonts/Barlow/barlow-bold.ttf") format("truetype");
   font-weight: 700;
   font-style: normal;
   font-display: swap;
@@ -71,7 +71,7 @@
 
 @font-face {
   font-family: "Barlow";
-  src: url("../fonts/Barlow/barlow-extra-bold.ttf") format("truetype");
+  src: url("./assets/fonts/Barlow/barlow-extra-bold.ttf") format("truetype");
   font-weight: 800;
   font-style: normal;
   font-display: swap;
@@ -79,7 +79,7 @@
 
 @font-face {
   font-family: "Barlow";
-  src: url("../fonts/Barlow/barlow-black.ttf") format("truetype");
+  src: url("./assets/fonts/Barlow/barlow-black.ttf") format("truetype");
   font-weight: 900;
   font-style: normal;
   font-display: swap;

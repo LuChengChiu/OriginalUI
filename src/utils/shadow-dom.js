@@ -419,7 +419,7 @@ export function injectBaseShadowStyles(shadowRoot) {
  * in the index.css file that gets injected into Shadow DOM via injectCSSIntoShadow().
  *
  * **Architecture (Local Fonts):**
- * 1. Fonts are self-hosted in /fonts/Days_One/ and /fonts/Barlow/
+ * 1. Fonts are self-hosted in src/assets/fonts/Days_One/ and src/assets/fonts/Barlow/
  * 2. @font-face rules defined in src/index.css reference local font files
  * 3. Vite bundles CSS and rewrites font URLs to chrome-extension:// URLs
  * 4. Build process copies fonts to dist/fonts/ (see vite.config.js:225)
