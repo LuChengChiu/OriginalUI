@@ -104,6 +104,7 @@ export class NavigationGuardian {
      * @private
      */
     this.eventListeners = [];
+    this._isEventListenersSetup = false;
 
     /**
      * Enhanced modal cache management configuration
@@ -157,6 +158,12 @@ export class NavigationGuardian {
       );
     }
 
+    // Create stable bound handler references ONCE (memory leak prevention)
+    // These references are reused if setupEventListeners() is called multiple times
+    this._boundClickHandler = this.handleLinkClick.bind(this);
+    this._boundSubmitHandler = this.handleFormSubmit.bind(this);
+    this._boundMessageHandler = this.handleNavigationMessage.bind(this);
+
     console.log(
       "OriginalUI: NavigationGuardian initialized with enhanced modular cleanup"
     );
@@ -205,36 +212,41 @@ export class NavigationGuardian {
 
   /**
    * Setup event listeners for navigation interception
+   * IDEMPOTENT: Safe to call multiple times (uses stable handler references)
    */
   setupEventListeners() {
-    // Listen for link clicks (capture phase to intercept early)
-    const clickHandler = this.handleLinkClick.bind(this);
-    const submitHandler = this.handleFormSubmit.bind(this);
-    const messageHandler = this.handleNavigationMessage.bind(this);
+    if (this._isEventListenersSetup) {
+      return;
+    }
+    this._isEventListenersSetup = true;
 
-    document.addEventListener("click", clickHandler, true);
+    // Use stable bound references created in constructor
+    // DOM will automatically deduplicate if called multiple times
+
+    // Listen for link clicks (capture phase to intercept early)
+    document.addEventListener("click", this._boundClickHandler, true);
     this.eventListeners.push({
       element: document,
       type: "click",
-      handler: clickHandler,
+      handler: this._boundClickHandler,
       options: true,
     });
 
     // Listen for form submissions (capture phase)
-    document.addEventListener("submit", submitHandler, true);
+    document.addEventListener("submit", this._boundSubmitHandler, true);
     this.eventListeners.push({
       element: document,
       type: "submit",
-      handler: submitHandler,
+      handler: this._boundSubmitHandler,
       options: true,
     });
 
     // Listen for messages from injected script
-    window.addEventListener("message", messageHandler);
+    window.addEventListener("message", this._boundMessageHandler);
     this.eventListeners.push({
       element: window,
       type: "message",
-      handler: messageHandler,
+      handler: this._boundMessageHandler,
       options: undefined,
     });
 
@@ -819,6 +831,7 @@ export class NavigationGuardian {
 
     try {
       this.isEnabled = false;
+      this._isEventListenersSetup = false;
 
       // Stop modal cache cleanup timer
       this.stopModalCacheCleanup();

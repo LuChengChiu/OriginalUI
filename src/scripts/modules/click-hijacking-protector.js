@@ -13,6 +13,13 @@ export class ClickHijackingProtector {
   constructor() {
     this.isActive = false;
     this.eventListeners = [];
+    this._isDocumentProtectionSetup = false;
+
+    // Create stable bound handler references ONCE (memory leak prevention)
+    // These references are reused if setupDocumentProtection() is called multiple times
+    this._boundClickHandler = this._handleClickCapture.bind(this);
+    this._boundPointerHandler = this._handlePointerEvent.bind(this);
+
     this.setupDocumentProtection();
   }
 
@@ -37,6 +44,7 @@ export class ClickHijackingProtector {
    */
   cleanup() {
     this.isActive = false;
+    this._isDocumentProtectionSetup = false;
 
     // Remove all tracked event listeners
     this.eventListeners.forEach(({ element, type, handler, options }) => {
@@ -54,52 +62,90 @@ export class ClickHijackingProtector {
   }
 
   /**
+   * Handle click events in capture phase
+   * @param {Event} event - Click event
+   * @private
+   * @note This method is bound in constructor to create stable handler reference
+   */
+  _handleClickCapture(event) {
+    if (!this.isActive) return;
+
+    // Run advanced click analysis first
+    const clickAllowed = this.handleAdvancedClickProtection(event);
+    if (!clickAllowed) {
+      return; // Click was blocked by advanced protection
+    }
+
+    const clickedElement = event.target;
+    const suspiciousOverlay = this.findSuspiciousOverlay(
+      clickedElement,
+      event
+    );
+
+    if (suspiciousOverlay) {
+      console.warn("OriginalUI: Blocked click on suspicious overlay", {
+        overlay: suspiciousOverlay,
+        clickTarget: clickedElement,
+      });
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+
+      // Remove the overlay immediately
+      this.removeSuspiciousOverlay(suspiciousOverlay);
+      return false;
+    }
+  }
+
+  /**
+   * Handle pointer events (pointerdown, pointerup, mousedown, mouseup)
+   * @param {Event} event - Pointer event
+   * @private
+   * @note This method is bound in constructor to create stable handler reference
+   */
+  _handlePointerEvent(event) {
+    if (!this.isActive) return;
+
+    const target = event.target;
+    if (this.isSuspiciousInterceptor(target)) {
+      console.warn(
+        `OriginalUI: Blocked ${event.type} on suspicious element`,
+        target
+      );
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+
+      // Remove the interceptor
+      target.remove();
+      return false;
+    }
+  }
+
+  /**
    * Setup document-level click capture
    * Intercepts clicks before malicious overlays can handle them
+   * IDEMPOTENT: Safe to call multiple times (uses stable handler reference)
    */
   setupDocumentProtection() {
-    // Capture phase - runs before any other click handlers
-    const clickHandler = (event) => {
-      if (!this.isActive) return;
-
-      // Run advanced click analysis first
-      const clickAllowed = this.handleAdvancedClickProtection(event);
-      if (!clickAllowed) {
-        return; // Click was blocked by advanced protection
-      }
-
-      const clickedElement = event.target;
-      const suspiciousOverlay = this.findSuspiciousOverlay(
-        clickedElement,
-        event
-      );
-
-      if (suspiciousOverlay) {
-        console.warn("OriginalUI: Blocked click on suspicious overlay", {
-          overlay: suspiciousOverlay,
-          clickTarget: clickedElement,
-        });
-
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
-
-        // Remove the overlay immediately
-        this.removeSuspiciousOverlay(suspiciousOverlay);
-        return false;
-      }
-    };
+    if (this._isDocumentProtectionSetup) {
+      return;
+    }
+    this._isDocumentProtectionSetup = true;
 
     const clickOptions = {
       capture: true, // Capture phase - highest priority
       passive: false, // Allow preventDefault
     };
 
-    document.addEventListener("click", clickHandler, clickOptions);
+    // Use stable bound reference created in constructor
+    // DOM will automatically deduplicate if called multiple times
+    document.addEventListener("click", this._boundClickHandler, clickOptions);
     this.eventListeners.push({
       element: document,
       type: "click",
-      handler: clickHandler,
+      handler: this._boundClickHandler,
       options: clickOptions,
     });
 
@@ -195,36 +241,20 @@ export class ClickHijackingProtector {
 
   /**
    * Setup pointer event protection
+   * IDEMPOTENT: Safe to call multiple times (uses stable handler reference)
    */
   setupPointerProtection() {
     const events = ["pointerdown", "pointerup", "mousedown", "mouseup"];
+    const options = { capture: true, passive: false };
 
     events.forEach((eventType) => {
-      const handler = (event) => {
-        if (!this.isActive) return;
-
-        const target = event.target;
-        if (this.isSuspiciousInterceptor(target)) {
-          console.warn(
-            `OriginalUI: Blocked ${eventType} on suspicious element`,
-            target
-          );
-          event.preventDefault();
-          event.stopPropagation();
-          event.stopImmediatePropagation();
-
-          // Remove the interceptor
-          target.remove();
-          return false;
-        }
-      };
-
-      const options = { capture: true, passive: false };
-      document.addEventListener(eventType, handler, options);
+      // Use stable bound reference created in constructor
+      // DOM will automatically deduplicate if called multiple times
+      document.addEventListener(eventType, this._boundPointerHandler, options);
       this.eventListeners.push({
         element: document,
         type: eventType,
-        handler: handler,
+        handler: this._boundPointerHandler,
         options: options,
       });
     });
