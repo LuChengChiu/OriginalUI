@@ -50,8 +50,8 @@ describe('Remote Data Fetcher', () => {
   });
 
   describe('fetchDefaultRules()', () => {
-    describe('Local file loading (current behavior)', () => {
-      test('should load rules from local file', async () => {
+    describe('Remote URL loading (current behavior)', () => {
+      test('should load rules from remote URL first', async () => {
         const mockRules = [
           { id: 'rule1', selector: '.ad', enabled: true },
           { id: 'rule2', selector: '.tracker', enabled: true }
@@ -65,12 +65,25 @@ describe('Remote Data Fetcher', () => {
         const result = await fetchDefaultRules();
 
         expect(result).toEqual(mockRules);
-        expect(global.fetch).toHaveBeenCalledWith(
-          'chrome-extension://test-extension-id/data/defaultRules.json'
-        );
+        expect(global.fetch).toHaveBeenCalledWith(REMOTE_URLS.RULES);
       });
 
-      test('should return empty array on local file load failure', async () => {
+      test('should fallback to local file when remote fails', async () => {
+        const mockRules = [{ id: 'rule1', selector: '.ad', enabled: true }];
+
+        global.fetch = vi.fn()
+          .mockRejectedValueOnce(new Error('Network error')) // Remote fails
+          .mockResolvedValueOnce({ ok: true, json: async () => mockRules }); // Local succeeds
+
+        const result = await fetchDefaultRules();
+
+        expect(result).toEqual(mockRules);
+        expect(global.fetch).toHaveBeenCalledTimes(2);
+        expect(global.fetch).toHaveBeenNthCalledWith(1, REMOTE_URLS.RULES);
+        expect(global.fetch).toHaveBeenNthCalledWith(2, 'chrome-extension://test-extension-id/data/defaultRules.json');
+      });
+
+      test('should return empty array when both remote and local fail', async () => {
         global.fetch = vi.fn().mockRejectedValue(new Error('File not found'));
 
         const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -107,7 +120,7 @@ describe('Remote Data Fetcher', () => {
         consoleErrorSpy.mockRestore();
       });
 
-      test('should log success message when loading local rules', async () => {
+      test('should log success message when loading remote rules', async () => {
         const mockRules = [{ id: 'rule1' }];
 
         global.fetch = vi.fn().mockResolvedValue({
@@ -121,9 +134,12 @@ describe('Remote Data Fetcher', () => {
 
         expect(consoleLogSpy).toHaveBeenCalledWith(
           expect.stringContaining('[DefaultRulesFetch]'),
-          'Using local default rules',
+          'Fetched rules from remote URL',
           expect.objectContaining({
-            data: { count: mockRules.length }
+            level: 'INFO',
+            category: 'DefaultRulesFetch',
+            message: 'Fetched rules from remote URL',
+            data: mockRules
           })
         );
 
@@ -158,8 +174,8 @@ describe('Remote Data Fetcher', () => {
   });
 
   describe('fetchDefaultWhitelist()', () => {
-    describe('Local file loading (current behavior)', () => {
-      test('should load whitelist from local file', async () => {
+    describe('Remote URL loading (current behavior)', () => {
+      test('should load whitelist from remote URL first', async () => {
         const mockWhitelist = ['example.com', 'google.com', 'github.com'];
 
         global.fetch = vi.fn().mockResolvedValue({
@@ -170,12 +186,25 @@ describe('Remote Data Fetcher', () => {
         const result = await fetchDefaultWhitelist();
 
         expect(result).toEqual(mockWhitelist);
-        expect(global.fetch).toHaveBeenCalledWith(
-          'chrome-extension://test-extension-id/data/defaultWhitelist.json'
-        );
+        expect(global.fetch).toHaveBeenCalledWith(REMOTE_URLS.WHITELIST);
       });
 
-      test('should return empty array on local file load failure', async () => {
+      test('should fallback to local file when remote fails', async () => {
+        const mockWhitelist = ['example.com'];
+
+        global.fetch = vi.fn()
+          .mockRejectedValueOnce(new Error('Network error')) // Remote fails
+          .mockResolvedValueOnce({ ok: true, json: async () => mockWhitelist }); // Local succeeds
+
+        const result = await fetchDefaultWhitelist();
+
+        expect(result).toEqual(mockWhitelist);
+        expect(global.fetch).toHaveBeenCalledTimes(2);
+        expect(global.fetch).toHaveBeenNthCalledWith(1, REMOTE_URLS.WHITELIST);
+        expect(global.fetch).toHaveBeenNthCalledWith(2, 'chrome-extension://test-extension-id/data/defaultWhitelist.json');
+      });
+
+      test('should return empty array when both remote and local fail', async () => {
         global.fetch = vi.fn().mockRejectedValue(new Error('File not found'));
 
         const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -212,7 +241,7 @@ describe('Remote Data Fetcher', () => {
         consoleErrorSpy.mockRestore();
       });
 
-      test('should log success message when loading local whitelist', async () => {
+      test('should log success message when loading remote whitelist', async () => {
         const mockWhitelist = ['example.com'];
 
         global.fetch = vi.fn().mockResolvedValue({
@@ -226,9 +255,12 @@ describe('Remote Data Fetcher', () => {
 
         expect(consoleLogSpy).toHaveBeenCalledWith(
           expect.stringContaining('[DefaultWhitelistFetch]'),
-          'Using local default whitelist',
+          'Fetched whitelist from remote URL',
           expect.objectContaining({
-            data: { count: mockWhitelist.length }
+            level: 'INFO',
+            category: 'DefaultWhitelistFetch',
+            message: 'Fetched whitelist from remote URL',
+            data: mockWhitelist
           })
         );
 
@@ -406,11 +438,14 @@ describe('Remote Data Fetcher', () => {
   });
 
   describe('Chrome runtime integration', () => {
-    test('should use chrome.runtime.getURL for local file paths', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => []
-      });
+    test('should use chrome.runtime.getURL for local fallback file paths', async () => {
+      // First fetch (remote) fails, second fetch (local) succeeds
+      global.fetch = vi.fn()
+        .mockRejectedValueOnce(new Error('Remote failed'))
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => []
+        });
 
       await fetchDefaultRules();
 
@@ -420,14 +455,17 @@ describe('Remote Data Fetcher', () => {
     test('should handle chrome.runtime.getURL returning different base URLs', async () => {
       chrome.runtime.getURL = vi.fn((path) => `chrome-extension://different-id/${path}`);
 
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => []
-      });
+      // First fetch (remote) fails, second fetch (local) succeeds
+      global.fetch = vi.fn()
+        .mockRejectedValueOnce(new Error('Remote failed'))
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => []
+        });
 
       await fetchDefaultWhitelist();
 
-      expect(global.fetch).toHaveBeenCalledWith(
+      expect(global.fetch).toHaveBeenNthCalledWith(2,
         'chrome-extension://different-id/data/defaultWhitelist.json'
       );
     });
